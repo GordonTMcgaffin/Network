@@ -2,13 +2,15 @@ import java.io.Serializable;
 
 public class Packet implements Serializable {
     String message;
-    String user;
+    String sender;
+    String reciever;
 
     //create user to 
     
 
-    public Packet(String user, String message){
-        this.user = user;
+    public Packet(String sendingUser,String recievingUser, String message){
+        this.sender = sendingUser;
+        this.reciever = recievingUser;
         this.message = message;
     }
 }

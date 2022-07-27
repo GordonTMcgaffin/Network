@@ -30,7 +30,7 @@ public class Client
                 System.out.println("Please enter a username>");
                 BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
                 username = reader.readLine().trim();
-                Packet packet = new Packet(username, "Username set");
+                Packet packet = new Packet(username,"Server", "Username set");
                 outStream.writeObject(packet);
 
                 Packet recvPacket = (Packet)inStream.readObject();
@@ -41,14 +41,30 @@ public class Client
                 }
             }
 
-            // TODO: Add in a thread to recieve messages.
-            messageHandler hearingAid = new messageHandler(inStream);
-            threadPool.execute(hearingAid);
+            //Thread to recieve messages 
+            try{
+                messageHandler hearingAid = new messageHandler(inStream);
+                threadPool.execute(hearingAid);
+            } catch (IOException e){
+                outStream.close();
+                socket.close();
+                System.exit(0);
+            }
 
             while (!message.equals("exit")) {
                 BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
                 message = reader.readLine().trim();
-                Packet packet = new Packet(username,message);
+
+                Packet packet;
+                if(message.equals("Whisper")){
+                    System.out.println("[Server] Type the name of the client you want to whisper to");
+                    String reciever = reader.readLine().trim();
+                    System.out.println("[Server] Please type your message");
+                    message = reader.readLine().trim();
+                    packet = new Packet(username,reciever,message);
+                }else{
+                    packet = new Packet(username,"all", message);
+                }
                 outStream.writeObject(packet);
             }   
             outStream.close();

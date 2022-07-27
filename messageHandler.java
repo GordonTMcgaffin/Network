@@ -11,16 +11,33 @@ public class messageHandler implements Runnable {
     @Override
     public void run() {
         String message = "";
-        while(!message.equals("close")){
+        while(!message.equals("exit")){
             Packet recvPacket;
             try {
                 recvPacket = (Packet)inStream.readObject();
-                System.out.println("["+recvPacket.user+"] " + recvPacket.message );
-                System.out.println("Type a message>");
+                
             } catch (ClassNotFoundException | IOException e) {
-                e.printStackTrace();
+                message = "exit";
+                // e.printStackTrace();
+                System.out.println("[Server] Lost connection to server");
+                System.exit(0);
+                break;
+            }
+
+            if(recvPacket.sender.equals("Disconected")){
+                System.out.println("[Server] " + recvPacket.message );
+                
+            }else{
+                System.out.println("["+recvPacket.sender+"] " + recvPacket.message );
+                System.out.println("Type a message>");
             }
             
+            
+        }
+        try {
+            inStream.close();
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
     

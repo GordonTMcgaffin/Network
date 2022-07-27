@@ -26,60 +26,55 @@ public class ClientHandler implements Runnable {
         String username = "";
 
         try{
-            while(!recvMessage.equals("exit") && client.isConnected()){
+            while(!recvMessage.equals("exit")){
                 //This is what is recieved 
                 Packet recvPacket = (Packet)inStream.readObject();
-                System.out.println("["+recvPacket.user+"]> "+ recvPacket.message);
+                System.out.println("["+recvPacket.sender+"]> "+ recvPacket.message);
                 recvMessage = recvPacket.message;
                 
                 //If the message sent to the server is "Username set" then the server 
                 //will check the username given by recvPacket.user and set the thread's
                 //username variable if it is unique
                 if(recvMessage.equals("Username set")){
-                    if(clientList.containsKey(recvPacket.user)){
+                    if(clientList.containsKey(recvPacket.sender)){
                         message = "duplicate";
                     }else{
                         message = "unique";
-                        clientList.put(recvPacket.user,this);
-                        username = recvPacket.user;
-                        System.out.println("HashMap > "+ clientList);
-                        
+                        clientList.put(recvPacket.sender,this);
+                        username = recvPacket.sender;
+                        System.out.println(printClients());
                     }
 
                     //Server sends a message back if the username is Unique or not
                     System.out.println("[Server] Username set as " + username);
-                    Packet packet = new Packet("Server",message);
+                    Packet packet = new Packet("Server",username,message);
                     outStream.writeObject(packet);
-                    try {
-                        Shout("Server",printClients());
-                    } catch (IOException e1) {
-                        e1.printStackTrace();
-                    }
-                }else{
+                    showClients();
+                }else if(recvMessage.equals("Get_All_Clients")){
+                    Packet packet = new Packet("Server",username, printClients());
+                    outStream.writeObject(packet);
+                }else if(!recvPacket.reciever.equals("all")){
+                    System.out.println("[Server] Whispering message " + recvPacket.message + " from " + recvPacket.sender + " to " + recvPacket.reciever);
+                    clientList.get(recvPacket.reciever).outStream.writeObject(recvPacket);
+                }else if(!recvMessage.equals("exit")){
                     System.out.println("[Server] Sending message to all users...");
-                    Shout(recvPacket.user,recvMessage);
+                    Shout(recvPacket.sender,recvMessage);
                     System.out.println("[Server] Message sent");
                 }
             }
             clientList.remove(username);
-            try {
-                Shout("Server",printClients());
-            } catch (IOException e1) {
-                e1.printStackTrace();
-            }
+            Shout("Disconected", "User " +username + " has dissconected");
+            showClients();
             client.close();
         } catch (IOException e){
             clientList.remove(username);
-            try {
-                Shout("Server",printClients());
-            } catch (IOException e1) {
-                e1.printStackTrace();
-            }
+            showClients();
             System.out.println("[Server] --- Client disconnected unexpectedly ---");
         } catch (ClassNotFoundException e) {
             e.printStackTrace();
         }
     }
+
     private String printClients(){
         String onlineUsers = "";
         onlineUsers = "Current online users:";
@@ -91,14 +86,19 @@ public class ClientHandler implements Runnable {
 
     private void Shout(String username,String message) throws IOException{
         for(Entry<String,ClientHandler> aClient : clientList.entrySet()){
-            Packet packet = new Packet(username,message);
+            Packet packet = new Packet(username,"All",message);
             System.out.println(message + " sent to " + aClient.getKey());
             aClient.getValue().outStream.writeObject(packet);
         }
     }
 
-    // private void hear(Packet packet) throws IOException{
-    //     outStream.writeObject(packet);
-    // }
+    private void showClients(){
+        try {
+            Shout("Server",printClients());
+        } catch (IOException e1) {
+            e1.printStackTrace();
+        }
+    }
+
     
 }
