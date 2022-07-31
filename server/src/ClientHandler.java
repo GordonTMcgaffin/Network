@@ -20,67 +20,76 @@ public class ClientHandler implements Runnable {
 
     @Override
     public void run() {
-        String recvMessage = "";
         String message = "";
         String username = "";
+        Message recvMessage;
+        Message sendMessage;
 
         try{
-            while(!recvMessage.equals("exit")) {
+            while(!message.equals("exit")) {
                 //This is what is received 
-                Message recvPacket = (Message)inStream.readObject();
-                System.out.println("["+recvPacket.sender+"]> "+ recvPacket.content);
-                recvMessage = recvPacket.content;
+                recvMessage = (Message)inStream.readObject();
+                message = recvMessage.content;
                 
                 //If the message sent to the server is "Username set" then the server 
-                //will check the username given by recvPacket.user and set the thread's
+                //will check the username given by recvMessage.user and set the thread's
                 //username variable if it is unique
-                if(recvMessage.equals("Username set")){
-                    if(clientList.containsKey(recvPacket.sender)){
+                if(recvMessage.content.equals("Username set")){
+                    if(clientList.containsKey(recvMessage.sender)){
                         message = "duplicate";
-                        Message packet = new Message("Server",username,message);
-                        outStream.writeObject(packet);
+                        sendMessage = new Message("Server",username,message);
+                        outStream.writeObject(sendMessage);
                     }else{
                         message = "unique";
-                        clientList.put(recvPacket.sender,this);
-                        username = recvPacket.sender;
-                        System.out.println(printClients());
+                        clientList.put(recvMessage.sender,this);
+                        username = recvMessage.sender;
+
                         //Server sends a message back if the username is Unique or not
-                        System.out.println("[Server] Username set as " + username);
-                        Message packet = new Message("Server",username,message);
-                        outStream.writeObject(packet);
-                        Shout("Server", "User " + username + " has joined.");
+                        System.out.println("[Server] User " + username + " has connected");
+                        System.out.println(printClients());
+                        sendMessage = new Message("Server",username,message);
+                        outStream.writeObject(sendMessage);
+                        Shout("Server", "User " + username + " has connected.");
                         showClients();
                     }
-                }else if(recvMessage.equals("show_all_clients")){
-                    Message packet = new Message("Server",username, printClients());
-                    outStream.writeObject(packet);
-                }else if(!recvPacket.receiver.equals("all")){
-                    System.out.println("[Server] Whispering message " + recvPacket.content + " from " + recvPacket.sender + " to " + recvPacket.receiver);
-                    if (!clientList.containsKey(recvPacket.receiver)) {
-                        clientList.get(recvPacket.sender).outStream.writeObject(new Message("Server", recvPacket.sender, "User " + recvPacket.receiver + " is not available."));
+                }else if(recvMessage.content.equals("show_all_clients")){
+                    sendMessage = new Message("Server",username, printClients());
+                    outStream.writeObject(sendMessage);
+                }else if(!recvMessage.receiver.equals("all")){
+
+                    if (!clientList.containsKey(recvMessage.receiver)) {
+                        clientList.get(recvMessage.sender).outStream.writeObject(new Message("Server", recvMessage.sender, "User " + recvMessage.receiver + " is not available."));
                     } else {
-                        clientList.get(recvPacket.sender).outStream.writeObject(recvPacket);
-                        clientList.get(recvPacket.receiver).outStream.writeObject(recvPacket);
+                        clientList.get(recvMessage.sender).outStream.writeObject(recvMessage);
+                        clientList.get(recvMessage.receiver).outStream.writeObject(recvMessage);
+                        System.out.println("[Server] Whispering message " + recvMessage.content + " from " + recvMessage.sender + " to " + recvMessage.receiver);
+
                     }
-                }else if(!recvMessage.equals("exit")){
-                    System.out.println("[Server] Sending message to all users...");
-                    Shout(recvPacket.sender, recvMessage);
-                    System.out.println("[Server] Message sent");
+                }else if(!recvMessage.content.equals("exit")){
+                    System.out.println("[Server] User " + username + " sent " + recvMessage.content + " to all users");
+                    Shout(recvMessage.sender, recvMessage.content);
                 }
             }
-            clientList.remove(username);
-            Shout("Server", "User " + username + " has left.");
-            showClients();
-            client.close();
+            endThread(username);
         } catch (IOException e){
-            clientList.remove(username);
-            Shout("Server", "User " + username + " has left.");
-            showClients();
-            System.out.println("[Server] --- Client disconnected unexpectedly ---");
+            endThread(username);
         } catch (ClassNotFoundException e) {
             e.printStackTrace();
         }
     }
+
+    private void endThread(String username){
+        clientList.remove(username);
+        Shout("Server", "User " + username + " has left.");
+        showClients();
+        try {
+            System.out.println("[Server] " + username + " has disconnected");
+            client.close();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
 
     private String printClients(){
         String onlineUsers = "online_users:";
@@ -94,7 +103,7 @@ public class ClientHandler implements Runnable {
         try {
             for(Entry<String,ClientHandler> aClient : clientList.entrySet()){
                 Message packet = new Message(username,"all",message);
-                System.out.println(message + " sent to " + aClient.getKey());
+//                System.out.println(message + " sent to " + aClient.getKey());
                 aClient.getValue().outStream.writeObject(packet);
             }
         } catch (IOException ioe) {

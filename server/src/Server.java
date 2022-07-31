@@ -10,14 +10,13 @@ public class Server {
     private static ExecutorService threadPool = Executors.newFixedThreadPool(4);
 
     public static void main(String[] args) throws Exception{
-        //et up main server
+        //set up main server
         ServerSocket listener = new ServerSocket(PORT);
         System.out.println("[Server] Server stated");
         while(true){
             System.out.println("[Server] Waiting for clients. . . ");
             //Wait for a client to connect 
             Socket client = listener.accept();
-            System.out.println("[Server] Client connected");
             //Set up client thread 
             ClientHandler clientThread = new ClientHandler(client,clientsList);
             //execute client thread
