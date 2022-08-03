@@ -58,7 +58,7 @@ public class ServerCommand
         try {
             System.out.println("[Server] Shutting down...");
             listener.close();
-            System.out.println("[Server] Goodbye.");
+
             //System.exit(0);
         } catch (IOException e) {
             throw new RuntimeException(e);

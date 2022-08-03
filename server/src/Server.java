@@ -7,6 +7,7 @@
 
 import java.io.*;
 import java.net.*;
+import java.util.Map;
 import java.util.concurrent.*;
 
 /**
@@ -62,7 +63,11 @@ public class Server {
             threadPool.execute(clientThread);
             
         }
-        // TODO: Add in an input for server to command it to kill itself.
+        // End all userHandler threads created before closing server
+        for(Map.Entry<String, ClientHandler> aClient: clientsList.entrySet()){
+            aClient.getValue().endThread();
+        }
+        System.out.println("[Server] Goodbye");
         System.exit(0);
     }
 }

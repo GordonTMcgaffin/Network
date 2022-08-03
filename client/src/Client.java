@@ -47,8 +47,7 @@ public class Client {
      * @param  host  name or address of the machine to connect to
      * @param  port  port on the server machine to connect to
      */ 
-    public Client(String host, int port)
-    {
+    public Client(String host, int port) throws IOException {
         try {
             socket = new Socket(host, port);
             inStream = new ObjectInputStream(socket.getInputStream());
@@ -56,9 +55,14 @@ public class Client {
             inQueue = new ArrayBlockingQueue<Message>(16);
             outQueue = new ArrayBlockingQueue<Message>(16);
         } catch (ConnectException ce) {
-            System.err.println("Could not connect to server at host:" + host +
-                               ", port:" + port + ".");
-            System.exit(1);
+            retryConnection(host,port);
+                  inStream = new ObjectInputStream(socket.getInputStream());
+                  outStream = new ObjectOutputStream(socket.getOutputStream());
+                  inQueue = new ArrayBlockingQueue<Message>(16);
+                  outQueue = new ArrayBlockingQueue<Message>(16);
+//            System.err.println("Could not connect to server at host:" + host +
+//                               ", port:" + port + ".");
+//            System.exit(1);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -71,10 +75,26 @@ public class Client {
                     try {
                         inQueue.put((Message) inStream.readObject());
                     } catch (SocketException se) {
-                        return;
+                        Message msg = new Message("Server", "all", "Server has gone offline. Please restart client to reconnect");
+                        try {
+                            inQueue.put(msg);
+                        } catch (InterruptedException e) {
+                            //throw new RuntimeException(e);
+                            System.exit(0);
+                        }
+                        break;
+                        //return;
                     } catch (EOFException eofe) {
-                        System.err.println("Server disconnected.");
-                        System.exit(1);
+                        Message msg = new Message("Server", "all", "Server has gone offline. Please restart client to reconnect");
+                        try {
+                            inQueue.put(msg);
+                        } catch (InterruptedException e) {
+                            //throw new RuntimeException(e);
+                            System.exit(0);
+                        }
+                        break;
+//                        System.err.println("Server disconnected.");
+//                        System.exit(1);
                     } catch (IOException |
                              ClassNotFoundException |
                              InterruptedException e) {
@@ -92,7 +112,16 @@ public class Client {
                 while (true) {
                     try {
                         outStream.writeObject(outQueue.take());
-                    } catch (InterruptedException ie) {
+                    } catch(SocketException se){
+                        Message msg = new Message("Server", "all", "Server has gone offline. Please restart client to reconnect");
+                        try {
+                            inQueue.put(msg);
+                        } catch (InterruptedException e) {
+                            //throw new RuntimeException(e);
+                            System.exit(1);
+                        }
+                        break;
+                    }catch (InterruptedException ie) {
                         return;
                     } catch (IOException ioe) {
                         ioe.printStackTrace();
@@ -125,6 +154,32 @@ public class Client {
     }
 
     /**
+     * If the client attempts to connect to a server that is not running, it will
+     * periodically retry to connect to the server until the connection is successful
+     *
+     * @param host the ip address of the server to connect to
+     * @param port the port on which t connect to the server
+     */
+    public void retryConnection(String host, int port){
+        boolean connected = false;
+
+        while(!connected){
+            try{
+                //System.out.println("[Server] unable to connect");
+                Thread.sleep(2000);
+                // System.out.println("[Client] Attempting connection");
+                socket = new Socket(host, port);
+                connected = true;
+            }catch( IOException e){
+
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+    }
+
+    /**
      * Places a {@code Message} on the outgoing message queue to be delivered to
      * the server.
      * Note that this method can block.
@@ -147,8 +202,8 @@ public class Client {
     public void disconnect()
     {
         try {
-            sendMessageThread.interrupt();
             receiveMessageThread.interrupt();
+            sendMessageThread.interrupt();
             outStream.close();
             inStream.close();
             socket.close();

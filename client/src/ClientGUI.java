@@ -5,6 +5,9 @@
  * @date    2022-08-02
  */
 
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.awt.event.WindowListener;
 import java.io.*;
 import java.util.*;
 import javafx.application.*;
@@ -14,6 +17,8 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.scene.text.*;
 import javafx.stage.*;
+
+import javax.swing.*;
 
 /**
  * The {@code ClientGUI} class instantiates the {@code Client} class and
@@ -52,7 +57,30 @@ public class ClientGUI
         // client
         String host = super.getParameters().getRaw().get(0);
         int port = Integer.parseInt(super.getParameters().getRaw().get(1));
+
+        //Connecting to server dialog
+        JDialog d = new JDialog(new JFrame(),"Connecting to server...");
+        JLabel l = new JLabel("Conecting to server...", SwingConstants.CENTER);
+        d.setLocationRelativeTo(null);
+        d.add(l);
+        d.setSize(300, 200);
+        d.setAlwaysOnTop(true);
+
+        d.setModal(false);
+        d.addWindowListener(new WindowAdapter() {
+                @Override
+                public void windowClosing(WindowEvent e) {
+                    System.exit(0);
+                }
+            }
+        );
+
+        d.setVisible(true);
+
+
         client = new Client(host, port);
+
+        d.setVisible(false);
 
         // username
         boolean unique = false;
@@ -63,6 +91,7 @@ public class ClientGUI
             dialog.setTitle("Enter Username");
             dialog.setHeaderText(headerText);
             dialog.setContentText("Username:");
+            primaryStage.setAlwaysOnTop(true);
             Optional<String> result = dialog.showAndWait();
             result.ifPresent(username -> this.username = username.strip());
 

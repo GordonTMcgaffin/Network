@@ -31,6 +31,7 @@ public class ClientHandler
     /** hashmap of all connected clients */
     private ConcurrentHashMap<String, ClientHandler> clientList;
 
+    public String username;
     /* --- Constructors ----------------------------------------------------- */
 
     /**
@@ -58,7 +59,6 @@ public class ClientHandler
     public void run()
     {
         String message = "";
-        String username = "";
         Message recvMessage;
         Message sendMessage;
 
@@ -115,11 +115,32 @@ public class ClientHandler
                     Shout(recvMessage.sender, recvMessage.content);
                 }
             }
-            endThread(username);
+            endThread();
         } catch (IOException e) {
-            endThread(username);
+            endThread();
         } catch (ClassNotFoundException e) {
             e.printStackTrace();
+        }
+    }
+
+    /**
+     * Cleans up then stops the {@code Runnable}.
+     *
+     *
+     */
+    public void endThread(){
+        if(username != null) {
+            clientList.remove(username);
+            Shout("Server", "User " + username + " has left.");
+            showClients();
+            try {
+                System.out.println("[Server] " + username + " has disconnected");
+                outStream.close();
+                inStream.close();
+                client.close();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 
@@ -163,21 +184,6 @@ public class ClientHandler
         }
     }
 
-    /**
-     * Cleans up then stops the {@code Runnable}.
-     *
-     * @param username  name of the client being handled by this handler
-     */
-    private void endThread(String username)
-    {
-        clientList.remove(username);
-        Shout("Server", username + " has left.");
-        showClients();
-        try {
-            System.out.println("[Server] " + username + " has disconnected.");
-            client.close();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
+
+
 }
