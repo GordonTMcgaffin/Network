@@ -1,1 +1,1 @@
-gradle build && gradle run --console=plain --args='localhost 9090'
+gradle run --console=plain --args="$1 9090"

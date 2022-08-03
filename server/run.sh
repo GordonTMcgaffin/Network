@@ -1,1 +1,1 @@
-gradle build && gradle run --console=plain
+gradle run --console=plain
