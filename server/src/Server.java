@@ -50,17 +50,21 @@ public class Server {
         Socket client;
 
         while (!command.equals("exit")) {
-            System.out.println("[Server] Waiting for clients...");
-            // Wait for a client to connect.
-            try {
-                client = listener.accept();
-            } catch(IOException e) {
-                break;
+            if(clientsList.size() <= 10) {
+                System.out.println("[Server] Waiting for clients...");
+                // Wait for a client to connect.
+                try {
+                    client = listener.accept();
+                } catch (IOException e) {
+                    break;
+                }
+                // Set up client thread.
+                ClientHandler clientThread = new ClientHandler(client, clientsList);
+                // Execute client thread.
+                threadPool.execute(clientThread);
+            }else{
+                System.out.println("[Server] Client list full");
             }
-            // Set up client thread.
-            ClientHandler clientThread = new ClientHandler(client, clientsList);
-            // Execute client thread.
-            threadPool.execute(clientThread);
             
         }
         // End all userHandler threads created before closing server
