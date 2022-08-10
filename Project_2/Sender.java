@@ -1,70 +1,193 @@
 import java.io.*;
 import java.net.*;
-import java.nio.ByteBuffer;
+import java.time.LocalTime;
 
 public class Sender {
+    static int packetSize;
+    static int packetAmount;
 
-    public static BufferedInputStream bin;
+    static Socket dataSocket;
+    static ObjectOutputStream outStream;
+    static ObjectInputStream inStream;
+    static DatagramSocket socket;
+    static InetAddress address;
 
-    public static void main (String[] args) throws IOException, ClassNotFoundException {
+    public static void main(String[] args) {
 
-        File f = new File(args[0]);
-        int fileTransferSize = Integer.parseInt(args[1]);
+        //Initialise communication with receiver
 
-        Socket dataSocket = new Socket("127.0.0.1",9090);
-        FileData fileInfo = new FileData(f.getName(),(int)f.length(),fileTransferSize);
-        ObjectOutputStream outStream = new ObjectOutputStream(dataSocket.getOutputStream());
-        outStream.writeObject(fileInfo);
+        try {
+            dataSocket = new Socket("127.0.0.1", 9090);
+            outStream = new ObjectOutputStream(dataSocket.getOutputStream());
+            inStream = new ObjectInputStream(dataSocket.getInputStream());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
 
+        String input = "";
+        while (!input.equals("exit")) {
+            //File to transfer
+            System.out.print("Please enter file name > ");
+            BufferedReader ip =
+                    new BufferedReader(new InputStreamReader(System.in));
 
-        ObjectInputStream inStream = new ObjectInputStream(dataSocket.getInputStream());
-        FileData ack = (FileData) inStream.readObject();
-        dataSocket.close();
-
-        System.out.println("Sending file...");
-        DatagramSocket socket = new DatagramSocket();
-        InetAddress address = InetAddress.getByName("127.0.0.1");
-
-
-        //Get file and convert it to bytes and store it in a byte array
-        FileInputStream FIn = new FileInputStream(f);
-        byte fileBytes[] = new byte[(int) f.length()];
-        FIn.read(fileBytes);
-        FIn.close();
-
-        //Split the packet up into smaller chunks to send;
-        int packetNumber = 0;
-        boolean EOF = false;
-        DatagramPacket sendPacket;
-        for(int i = 0; i < fileBytes.length; i += fileTransferSize){
-            packetNumber++;
-            // We add three bytes, two for the packet number and one to indicate EOF
-            byte[] packetBytes = new byte[fileTransferSize + 3];
-
-            //We store the packet number over two bytes in case there is a large amount of packets
-            //The first packet contains the first 8 bits of the packet number and the second byte contains the last 8 bits
-            packetBytes[0] = (byte)(packetNumber >> 8);
-            packetBytes[1] = (byte)(packetNumber);
-
-            if((i+fileTransferSize)>= fileBytes.length){
-                //We have reached end of file
-                EOF = true;
-                //The one in the third byte indicates EOF
-                packetBytes[2] = 1;
-            }else{
-                EOF = false;
-                packetBytes[2] = 0;
+            try {
+                input = ip.readLine();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
             }
 
-            if(EOF){
-                System.arraycopy(fileBytes,i,packetBytes,3,fileBytes.length-i);
-            }else{
-                System.arraycopy(fileBytes,i,packetBytes,3,fileTransferSize);
+            if (input.equals("exit")) {
+
+                close();
             }
-            sendPacket = new DatagramPacket(packetBytes, packetBytes.length,address,9090);
-            socket.send(sendPacket);
-            System.out.println("Packet " + packetNumber + " has been sent. EOF: " + EOF);
+
+            File file = new File(input);
+            System.out.println("Sending file: " + file.getPath());
+            byte[] fileBytes = initFileTransfer(file);
+            packetAmount = (int) file.length() / packetSize + 1;
+
+            try {
+                socket = new DatagramSocket();
+                address = InetAddress.getByName("127.0.0.1");
+            } catch (SocketException | UnknownHostException e) {
+                throw new RuntimeException(e);
+            }
+            int packetNumber = 0;
+            UDPSend(fileBytes);
+            TCPSend(fileBytes);
+        }
+    }
+
+    public static void close() {
+        try {
+            dataSocket.close();
+            outStream.close();
+            inStream.close();
+            socket.close();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        System.exit(0);
+    }
+
+    public static void TCPSend(byte[] fileBytes) {
+        System.out.println("Sending file via TCP...");
+        try {
+            outStream.writeObject(LocalTime.now());
+            outStream.writeObject(fileBytes);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
         System.out.println("File sent");
     }
+
+    public static void UDPSend(byte[] fileBytes) {
+
+        System.out.println("Sending files via UDP...");
+        try {
+            outStream.writeObject(LocalTime.now());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        boolean complete = false;
+
+        while (!complete) {
+            int[] request;
+            try {
+                request = (int[]) inStream.readObject();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            } catch (ClassNotFoundException e) {
+                throw new RuntimeException(e);
+            }
+
+
+            if (request[0] == -1) {
+                complete = true;
+            } else {
+
+                DatagramPacket sendPacket;
+                boolean EOF = false;
+                for (int r = 0; r < request.length; r++) {
+                    if (request[r] != -1) {
+                        byte[] packetBytes = new byte[packetSize + 4];
+                        packetBytes[0] = (byte) (request[r] >> 16);
+                        packetBytes[1] = (byte) (request[r] >> 8);
+                        packetBytes[2] = (byte) (request[r]);
+
+                        int PacketNumber = ((packetBytes[0] & 0xff) << 16) + ((packetBytes[1] & 0xff) << 8) + (packetBytes[2] & 0xff);
+
+                        if ((request[r] * packetSize + packetSize) >= fileBytes.length) {
+                            //We have reached end of file
+                            EOF = true;
+                            //The one in the third byte indicates EOF
+                            packetBytes[3] = 1;
+                        } else {
+                            EOF = false;
+                            packetBytes[3] = 0;
+                        }
+
+                        if (EOF) {
+                            System.arraycopy(fileBytes, request[r] * packetSize, packetBytes, 4, fileBytes.length - (packetAmount - 1) * packetSize);
+                        } else {
+                            System.arraycopy(fileBytes, request[r] * packetSize, packetBytes, 4, packetSize);
+                        }
+                        sendPacket = new DatagramPacket(packetBytes, packetBytes.length, address, 9090);
+                        try {
+                            socket.send(sendPacket);
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+        System.out.println("File sent");
+    }
+
+    public static byte[] initFileTransfer(File file) {
+
+
+        FileData fileInfo = new FileData(file.getName(), (int) file.length());
+
+        try {
+            //Send file info to receiver
+            System.out.println("Sending file info...");
+            outStream.writeObject(fileInfo);
+            System.out.println("File info sent");
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        try {
+            //Receive ack
+            System.out.println("Waiting for receiver info...");
+            RecieverInfo recieverInfo = (RecieverInfo) inStream.readObject();
+            packetSize = recieverInfo.packetSize;
+            System.out.println("Receiver info received");
+        } catch (IOException | ClassNotFoundException e) {
+            throw new RuntimeException(e);
+        }
+
+        FileInputStream FIn = null;
+        try {
+            FIn = new FileInputStream(file);
+
+        } catch (FileNotFoundException e) {
+            throw new RuntimeException(e);
+        }
+        byte fileBytes[] = new byte[(int) file.length()];
+        try {
+            FIn.read(fileBytes);
+            FIn.close();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        return fileBytes;
+    }
+
 }
