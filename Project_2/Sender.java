@@ -11,6 +11,8 @@ public class Sender {
     static ObjectInputStream inStream;
     static DatagramSocket socket;
     static InetAddress address;
+    static int maxSequenceAmount = 65500;
+    static int packetCheckSize;
 
     public static void main(String[] args) {
 
@@ -21,7 +23,9 @@ public class Sender {
             outStream = new ObjectOutputStream(dataSocket.getOutputStream());
             inStream = new ObjectInputStream(dataSocket.getInputStream());
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            System.out.println("Connecting to receiver...");
+            retryConnection();
+
         }
 
         String input = "";
@@ -46,6 +50,7 @@ public class Sender {
             System.out.println("Sending file: " + file.getPath());
             byte[] fileBytes = initFileTransfer(file);
             packetAmount = (int) file.length() / packetSize + 1;
+            packetCheckSize = Math.min(maxSequenceAmount, packetAmount);
 
             try {
                 socket = new DatagramSocket();
@@ -53,9 +58,22 @@ public class Sender {
             } catch (SocketException | UnknownHostException e) {
                 throw new RuntimeException(e);
             }
-            int packetNumber = 0;
             UDPSend(fileBytes);
             TCPSend(fileBytes);
+        }
+    }
+
+    public static void retryConnection() {
+        boolean connected = false;
+        while (!connected) {
+            try {
+                dataSocket = new Socket("127.0.0.1", 9090);
+                outStream = new ObjectOutputStream(dataSocket.getOutputStream());
+                inStream = new ObjectInputStream(dataSocket.getInputStream());
+                connected = true;
+            } catch (IOException e) {
+                //System.out.print("-");
+            }
         }
     }
 
@@ -91,57 +109,54 @@ public class Sender {
             throw new RuntimeException(e);
         }
 
-        boolean complete = false;
+        for (int packetSet = 0; packetSet < packetAmount; packetSet += packetCheckSize) {
+            boolean complete = false;
+            while (!complete) {
+                int[] request;
+                try {
+                    request = (int[]) inStream.readObject();
+                } catch (IOException | ClassNotFoundException e) {
+                    throw new RuntimeException(e);
+                }
 
-        while (!complete) {
-            int[] request;
-            try {
-                request = (int[]) inStream.readObject();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            } catch (ClassNotFoundException e) {
-                throw new RuntimeException(e);
-            }
+                if (request[0] == -1) {
+                    complete = true;
+                } else {
 
+                    DatagramPacket sendPacket;
+                    boolean EOF = false;
+                    for (int r = 0; r < request.length; r++) {
+                        if (request[r] != -1) {
+                            byte[] packetBytes = new byte[packetSize + 4];
+                            int packetNumber = request[r] - packetSet;
+                            packetBytes[0] = (byte) (packetNumber >> 16);
+                            packetBytes[1] = (byte) (packetNumber >> 8);
+                            packetBytes[2] = (byte) (packetNumber);
 
-            if (request[0] == -1) {
-                complete = true;
-            } else {
+                            if ((request[r] * packetSize + packetSize) >= fileBytes.length) {
+                                //We have reached end of file
+                                EOF = true;
+                                //The one in the third byte indicates EOF
+                                packetBytes[3] = 1;
+                            } else {
+                                EOF = false;
+                                packetBytes[3] = 0;
+                            }
 
-                DatagramPacket sendPacket;
-                boolean EOF = false;
-                for (int r = 0; r < request.length; r++) {
-                    if (request[r] != -1) {
-                        byte[] packetBytes = new byte[packetSize + 4];
-                        packetBytes[0] = (byte) (request[r] >> 16);
-                        packetBytes[1] = (byte) (request[r] >> 8);
-                        packetBytes[2] = (byte) (request[r]);
-
-                        int PacketNumber = ((packetBytes[0] & 0xff) << 16) + ((packetBytes[1] & 0xff) << 8) + (packetBytes[2] & 0xff);
-
-                        if ((request[r] * packetSize + packetSize) >= fileBytes.length) {
-                            //We have reached end of file
-                            EOF = true;
-                            //The one in the third byte indicates EOF
-                            packetBytes[3] = 1;
+                            if (EOF) {
+                                System.arraycopy(fileBytes, request[r] * packetSize, packetBytes, 4, fileBytes.length - (packetAmount - 1) * packetSize);
+                            } else {
+                                System.arraycopy(fileBytes, request[r] * packetSize, packetBytes, 4, packetSize);
+                            }
+                            sendPacket = new DatagramPacket(packetBytes, packetBytes.length, address, 9090);
+                            try {
+                                socket.send(sendPacket);
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
                         } else {
-                            EOF = false;
-                            packetBytes[3] = 0;
+                            break;
                         }
-
-                        if (EOF) {
-                            System.arraycopy(fileBytes, request[r] * packetSize, packetBytes, 4, fileBytes.length - (packetAmount - 1) * packetSize);
-                        } else {
-                            System.arraycopy(fileBytes, request[r] * packetSize, packetBytes, 4, packetSize);
-                        }
-                        sendPacket = new DatagramPacket(packetBytes, packetBytes.length, address, 9090);
-                        try {
-                            socket.send(sendPacket);
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-                    } else {
-                        break;
                     }
                 }
             }
@@ -156,20 +171,19 @@ public class Sender {
 
         try {
             //Send file info to receiver
-            System.out.println("Sending file info...");
             outStream.writeObject(fileInfo);
-            System.out.println("File info sent");
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            System.out.println("Receiver has disconnected");
+            System.exit(0);
+
         }
         try {
             //Receive ack
-            System.out.println("Waiting for receiver info...");
             RecieverInfo recieverInfo = (RecieverInfo) inStream.readObject();
             packetSize = recieverInfo.packetSize;
-            System.out.println("Receiver info received");
         } catch (IOException | ClassNotFoundException e) {
-            throw new RuntimeException(e);
+            System.out.println("Receiver disconnected");
+            System.exit(0);
         }
 
         FileInputStream FIn = null;
@@ -179,7 +193,7 @@ public class Sender {
         } catch (FileNotFoundException e) {
             throw new RuntimeException(e);
         }
-        byte fileBytes[] = new byte[(int) file.length()];
+        byte[] fileBytes = new byte[(int) file.length()];
         try {
             FIn.read(fileBytes);
             FIn.close();
