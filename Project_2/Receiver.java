@@ -3,8 +3,6 @@ import java.net.*;
 import java.time.LocalTime;
 import java.util.Arrays;
 
-import static javafx.application.Application.launch;
-
 public class Receiver {
     static int packetSize;
     static int packetAmount;
@@ -13,11 +11,14 @@ public class Receiver {
     static ObjectInputStream inStream;
     static ObjectOutputStream outStream;
     static ServerSocket TCPSocket;
-    static Socket TCPsender;
+    static Socket TCPSender;
     static DatagramSocket dataSocket;
     static String TCPDest;
     static String UDPDest;
     static float nano = 1000000000;
+
+    static int maxSequenceAmount = 65500;
+    static int packetCheckSize;
 
     public static void main(String[] args) {
 
@@ -60,9 +61,9 @@ public class Receiver {
         //Init sockets
         System.out.println("Waiting for Sender");
         try {
-            TCPsender = TCPSocket.accept();
-            inStream = new ObjectInputStream(TCPsender.getInputStream());
-            outStream = new ObjectOutputStream(TCPsender.getOutputStream());
+            TCPSender = TCPSocket.accept();
+            inStream = new ObjectInputStream(TCPSender.getInputStream());
+            outStream = new ObjectOutputStream(TCPSender.getOutputStream());
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -86,7 +87,7 @@ public class Receiver {
         inStream.close();
         outStream.close();
         TCPSocket.close();
-        TCPsender.close();
+        TCPSender.close();
         dataSocket.close();
     }
 
@@ -99,11 +100,9 @@ public class Receiver {
             byte[] fileBytes = (byte[]) inStream.readObject();
             FOut.write(fileBytes);
             LocalTime endTime = LocalTime.now();
-            finalTime = ((float) endTime.getSecond() + (float) endTime.getNano() / nano) - ((float) startTime.getSecond() + (float) startTime.getNano() / nano);
+            finalTime = ((float) endTime.getMinute() * 60 + (float) endTime.getSecond() + (float) endTime.getNano() / nano) - ((float) startTime.getMinute() * 60 + (float) startTime.getSecond() + (float) startTime.getNano() / nano);
             FOut.close();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        } catch (ClassNotFoundException e) {
+        } catch (IOException | ClassNotFoundException e) {
             throw new RuntimeException(e);
         }
 
@@ -118,9 +117,7 @@ public class Receiver {
         LocalTime startTime;
         try {
             startTime = (LocalTime) inStream.readObject();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        } catch (ClassNotFoundException e) {
+        } catch (IOException | ClassNotFoundException e) {
             throw new RuntimeException(e);
         }
 
@@ -132,69 +129,76 @@ public class Receiver {
         byte[] fileBytes = new byte[fileInfo.fileSize];
 
 
-        boolean complete = false;
-
         DatagramPacket receivePacket;
 
         int receivedPacketNumber = 0;
         totalPackets = 0;
-        while (!complete) {
+        for (int packetSet = 0; packetSet < packetAmount; packetSet += packetCheckSize) {
+            boolean complete = false;
+            while (!complete) {
+                int[] missingPackets = new int[packetCheckSize];
+                Arrays.fill(missingPackets, -1);
 
-            int[] missingPackets = new int[packetAmount];
-            Arrays.fill(missingPackets, -1);
-
-            int m = 0;
-            for (int p = 0; p < packetAmount; p++) {
-                if (receivedPackets[p] == 0) {
-                    missingPackets[m] = p;
-                    m++;
-                }
-            }
-
-            try {
-                outStream.writeObject(missingPackets);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-
-            if (missingPackets[0] == -1) {
-                break;
-            }
-            for (int j = m; j > 0; j--) {
-
-                byte[] receivedPacketBytes = new byte[packetSize + 4];
-                receivePacket = new DatagramPacket(receivedPacketBytes, receivedPacketBytes.length);
-                try {
-                    socket.receive(receivePacket);
-                    receivedPacketBytes = receivePacket.getData();
-                    receivedPacketNumber = ((receivedPacketBytes[0] & 0xff) << 16) + ((receivedPacketBytes[1] & 0xff) << 8) + (receivedPacketBytes[2] & 0xff);
-                    if (!(receivedPackets[receivedPacketNumber] == 1)) {
-                        if (receivedPacketBytes[3] == 1) {
-                            //EOF
-                            System.arraycopy(receivedPacketBytes, 4,
-                                    fileBytes, (receivedPacketNumber) * (packetSize), fileInfo.fileSize - (packetAmount - 1) * (packetSize));
-                        } else {
-                            //Not EOF
-                            System.arraycopy(receivedPacketBytes, 4, fileBytes, (receivedPacketNumber) * (packetSize), packetSize);
-
+                int m = 0;
+                if (!((packetSet + packetCheckSize) > packetAmount)) {
+                    for (int p = packetSet; p < packetSet + packetCheckSize; p++) {
+                        if (receivedPackets[p] == 0) {
+                            missingPackets[m] = p;
+                            m++;
                         }
-                        receivedPackets[receivedPacketNumber] = 1;
-                        //System.out.println("Received packet " + (receivedPacketNumber + 1) + " of " + packetAmount);
-                        totalPackets++;
-
-                        System.out.println("Total packets received: " + 100 * ((float) totalPackets / (float) packetAmount) + "%");
-
-
-                    } else {
-                        break;
                     }
+                } else {
+                    for (int p = packetSet; p < packetAmount; p++) {
+                        if (receivedPackets[p] == 0) {
+                            missingPackets[m] = p;
+                            m++;
+                        }
+                    }
+                }
+
+                try {
+                    outStream.writeObject(missingPackets);
                 } catch (IOException e) {
-                    //  System.out.println("Socket timed out");
+                    throw new RuntimeException(e);
+                }
+
+                if (missingPackets[0] == -1) {
                     break;
                 }
+                for (int j = m; j > 0; j--) {
+
+                    byte[] receivedPacketBytes = new byte[packetSize + 4];
+                    receivePacket = new DatagramPacket(receivedPacketBytes, receivedPacketBytes.length);
+                    try {
+                        socket.receive(receivePacket);
+                        receivedPacketBytes = receivePacket.getData();
+                        receivedPacketNumber = packetSet + ((receivedPacketBytes[0] & 0xff) << 16) + ((receivedPacketBytes[1] & 0xff) << 8) + (receivedPacketBytes[2] & 0xff);
+                        if (!(receivedPackets[receivedPacketNumber] == 1)) {
+                            if (receivedPacketBytes[3] == 1) {
+                                //EOF
+                                System.arraycopy(receivedPacketBytes, 4,
+                                        fileBytes, (receivedPacketNumber) * (packetSize), fileInfo.fileSize - (packetAmount - 1) * (packetSize));
+                            } else {
+                                //Not EOF
+                                System.arraycopy(receivedPacketBytes, 4, fileBytes, (receivedPacketNumber) * (packetSize), packetSize);
+
+                            }
+                            receivedPackets[receivedPacketNumber] = 1;
+                            totalPackets++;
+
+                            System.out.println("Total packets received: " + 100 * ((float) totalPackets / (float) packetAmount) + "%");
+
+
+                        } else {
+                            break;
+                        }
+                    } catch (IOException e) {
+                        break;
+                    }
+
+                }
 
             }
-
         }
         try {
             FOut.write(fileBytes);
@@ -203,7 +207,7 @@ public class Receiver {
             throw new RuntimeException(e);
         }
         LocalTime endTime = LocalTime.now();
-        float finalTime = ((float) endTime.getSecond() + (float) endTime.getNano() / nano) - ((float) startTime.getSecond() + (float) startTime.getNano() / nano);
+        float finalTime = ((float) endTime.getMinute() * 60 + (float) endTime.getSecond() + (float) endTime.getNano() / nano) - ((float) startTime.getMinute() * 60 + (float) startTime.getSecond() + (float) startTime.getNano() / nano);
         System.out.println("File transfer completed in: " + finalTime + "seconds");
     }
 
@@ -228,6 +232,10 @@ public class Receiver {
     public static FileOutputStream initFile(String location) {
         int fileSize = fileInfo.fileSize;
         packetAmount = (int) fileSize / packetSize + 1;
+
+
+        packetCheckSize = Math.min(maxSequenceAmount, packetAmount);
+
         File f = new File(location + fileInfo.fileName);
         FileOutputStream FOut;
         try {
