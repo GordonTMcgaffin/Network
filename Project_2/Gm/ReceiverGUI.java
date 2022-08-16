@@ -113,7 +113,7 @@ public class ReceiverGUI
                 public void run() {
                     while (true) {
                         try {
-                            Receiver.receive(9090, 50, file.getPath());
+                            Receiver.receive(9090, 500, file.getPath());
                         } catch (Exception ex) {
                             Alerter.showAlert(AlertType.ERROR, "Something Went Wrong", "An unknown error has occurred.");
                             ex.printStackTrace();

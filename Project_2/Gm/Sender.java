@@ -81,6 +81,7 @@ public class Sender {
     }
 
     public static void UDPSend(byte[] fileBytes) {
+        System.out.println("Sending file via UDP");
         for (int packetSet = 0; packetSet < packetAmount; packetSet += packetCheckSize) {
             boolean complete = false;
             while (!complete) {
@@ -120,6 +121,7 @@ public class Sender {
                             }
                             sendPacket = new DatagramPacket(packetBytes, packetBytes.length, address, 9090);
                             try {
+                                System.out.println(packetNumber + packetSet);
                                 socket.send(sendPacket);
                             } catch (IOException e) {
                                 throw new RuntimeException(e);

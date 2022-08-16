@@ -24,9 +24,7 @@ public class Receiver {
 
 
     public static void receive(int port, int socketTimeout, String dest) {
-        System.out.println(dest);
         Dest = dest;
-
         packetSize = 65000;
 
         //set up sockets
@@ -47,8 +45,13 @@ public class Receiver {
 
         while (true) {
             fileInfo = initSender();
-            UDPReceive();
-            TCPReceive();
+            if (fileInfo.protocol.equals("RBUDP")) {
+                System.out.println("UDP");
+                UDPReceive();
+            } else {
+                System.out.println("TCP");
+                TCPReceive();
+            }
         }
     }
 
@@ -65,9 +68,11 @@ public class Receiver {
     }
 
     public static void TCPReceive() {
+        System.out.println("Receiving file via TCP");
         BufferedOutputStream FOut = initFile();
         try {
             FOut.write((byte[]) inStream.readObject());
+            System.out.println("File received");
             FOut.close();
         } catch (IOException | ClassNotFoundException e) {
             throw new RuntimeException(e);
@@ -85,6 +90,7 @@ public class Receiver {
         totalPackets = 0;
         for (int packetSet = 0; packetSet < packetAmount; packetSet += packetCheckSize) {
             boolean complete = false;
+            System.out.println("Receiving UDP...");
             while (!complete) {
                 int[] missingPackets = new int[packetCheckSize];
                 Arrays.fill(missingPackets, -1);
@@ -132,6 +138,7 @@ public class Receiver {
                                 //Not EOF
                                 System.arraycopy(receivedPacketBytes, 4, fileBytes, (receivedPacketNumber) * (packetSize), packetSize);
                             }
+                            System.out.println("Received packet: " + receivedPacketNumber);
                             receivedPackets[receivedPacketNumber] = 1;
                             totalPackets++;
                             progress = (double) totalPackets / (double) packetAmount;
@@ -155,6 +162,7 @@ public class Receiver {
     public static FileData initSender() {
         FileData fileInfo = null;
         try {
+            System.out.println("Sending file info");
             fileInfo = (FileData) inStream.readObject();
             RecieverInfo recieverInfo = new RecieverInfo(packetSize);
             outStream.writeObject(recieverInfo);
@@ -170,7 +178,7 @@ public class Receiver {
         int fileSize = fileInfo.fileSize;
         packetAmount = (int) fileSize / packetSize + 1;
         packetCheckSize = Math.min(maxSequenceAmount, packetAmount);
-        Path path = Path.of(Dest + fileInfo.fileName);
+        Path path = Path.of(Dest + "\\" + fileInfo.fileName);
         BufferedOutputStream FOut;
         try {
             FOut = new BufferedOutputStream(Files.newOutputStream(path));
