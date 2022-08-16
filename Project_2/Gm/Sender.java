@@ -19,7 +19,7 @@ public class Sender {
         //Initialise communication with receiver
 
         try {
-            dataSocket = new Socket("127.0.0.1", 9090);
+            dataSocket = new Socket("25.52.211.56", 9090);
             outStream = new ObjectOutputStream(dataSocket.getOutputStream());
             inStream = new ObjectInputStream(dataSocket.getInputStream());
         } catch (IOException e) {
@@ -35,7 +35,7 @@ public class Sender {
 
         try {
             socket = new DatagramSocket();
-            address = InetAddress.getByName("127.0.0.1");
+            address = InetAddress.getByName("25.52.211.56");
         } catch (SocketException | UnknownHostException e) {
             throw new RuntimeException(e);
         }
@@ -73,6 +73,7 @@ public class Sender {
     }
 
     public static void TCPSend(byte[] fileBytes) {
+        System.out.println("Sending via TCP");
         try {
             outStream.writeObject(fileBytes);
         } catch (IOException e) {
