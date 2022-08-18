@@ -1,41 +1,390 @@
 % File:    report.tex
 % Brief:   report for CS 354 Project 2
 % Author:  G. Mcgaffin (23565608@sun.ac.za)
-%          J. P. Visser (21553416@sun.ac.za)
+% Author:  J. P. Visser (21553416@sun.ac.za)
 % Date:    2022-08-11
 
 \documentclass[10pt, a4paper]{article}
 
 \title{CS 354 Project 2: Reliable Blast User Datagram Protocol (RBUDP)}
-\author{G. Mcgaffin (23565608@sun.ac.za) \\
+\author{Group 41: \vspace{0.5em} \\
+        G. Mcgaffin (23565608@sun.ac.za) \vspace{0.3em} \\
         J.\ P.\ Visser (21553416@sun.ac.za)}
-\date{17 August 2022}
+\date{19 August 2022}
 
 \begin{document}
+
 \maketitle
 
-\section{Introduction}
+\tableofcontents
+\newpage
 
-\section{Unimplemented Features}
+% --- Introduction ----------------------------------------------------------- %
+
+\section{Introduction}
+\label{sec:intro}
+
+We were tasked with developing two programs for transferring files via TCP and
+RBUDP. The one program must act as the sender and the other as the receiver.
+
+\subsection{Sender Requirements}
+\label{subsec:sender-req}
+
+The sender had the following implementation requirements:
+\begin{enumerate}
+  \item Must have a simple GUI.
+  \item Must be able to select a file to transfer.
+  \item Files must be transferred to the receiver across the local network using
+    RBUDP.
+  \item Files must be transferred to the receiver across the local network using
+    TCP.
+  \item RBUDP must make use of datagram packets for data transfer and may use a
+    TCP connection for signalling only.
+  \item RBUDP datagram packets must contain unique sequence numbers.
+\end{enumerate}
+
+\subsection{Receiver Requirements}
+\label{subsec:receiver-req}
+
+And the receiver had the following implementation requirements:
+\begin{enumerate}
+  \item Must have a simple GUI.
+  \item Must be able to receive files from the sender.
+  \item Must show the progress of incoming files.
+  \item Must be able to handle dropped packets and out of order RBUDP datagram
+    packets appropriately.
+\end{enumerate}
+
+\subsection{Overview}
+\label{subsec:overview}
+
+In this document we will provide a complete view of our implementation, by
+discussing its design (\S\ref{sec:design}), giving a breakdown of the files into
+which it is organized (\S\ref{sec:file-desc}), and providing a high level
+description, with more details where appropriate, of the flow of execution of
+the two programs which it comprises (\S\ref{sec:prog-desc}).
+
+By our own evaluation, we are confident that our implementation meets all the
+requirements, which makes it unnecessary to include a section dedicated to
+unimplemented features. We will, however, discuss features we have implemented
+additional to the requirements in \S\ref{sec:add-feat}.
+
+Furthermore, we will also cover issues we encountered during the development
+process (\S\ref{sec:issues}), experiments we have conducted (\S\ref{sec:exp}),
+compilation and execution of the two programs (\S\ref{sec:comp-exec}), as well
+as the libraries we made use of (\S\ref{sec:libs}).
+
+% --- Additional Features ---------------------------------------------------- %
 
 \section{Additional Features}
+\label{sec:add-feat}
+
+\subsection{Sender Cannot Connect to Receiver}
+\label{subsec:send-cant-connect}
+
+If for whatever reason the sender cannot establish a connection with the
+receiver when the user presses the send button, then an alert is shown to inform
+the user of this issue.\footnote{We also included various other alerts (in both
+the sender and receiver) to provide the user with feedback as they interact with
+the system.}
+
+
+\subsection{Transfer Success Status}
+\label{subsec:trans-suc-stat}
+
+In our implementation, once the sender starts sending a file to the receiver,
+the transfer cannot be stopped via the GUI. However, the user can still
+terminate the program by closing the window or by sending a kill signal to it
+via the command-line. Terminating the program will cause the receiver to lose
+its connection to the sender, and it will consider the transfer complete, even
+though that cannot be the case.
+
+In the earlier versions of our implementation we simply showed the user an alert
+to notify them that the transfer had been \emph{completed} (i.e., the sender was
+sending something, but it is not anymore), without indicating whether the
+transfer was \emph{successful}. 
+
+So in order to provide a better experience to the user running the receiver, we
+added an extra check that, once a file tranfer has ended (either by completing,
+or by the sender being terminated), compares the number of bytes written to the
+byte size of the file that was transferred. Using this check we can inform the
+user not only about the completion of the transfer, but also whether it was
+successful.
+
+% --- File Description ------------------------------------------------------- %
 
 \section{File Descriptions}
+\label{sec:file-desc}
+
+\subsection{Sender Files}
+\label{subsec:sender-file-desc}
+
+\subsubsection{\texttt{Sender.java}}
+\label{subsubsec:send.java}
+
+This file implements the sender's networking logic. It contains a static
+function for sending files to the receiver, either via TCP or RBUDP. It also
+contains a private helper function for writing \texttt{short int} values to a
+specified position in a \texttt{byte} array.
+
+\subsubsection{\texttt{SenderGUI.java}}
+\label{subsubsec:send-gui.java}
+
+Implements the sender's graphical user interface, and calls the \texttt{send}
+function defined in \texttt{Sender.java} to send files to the receiver.
+
+\subsection{Receiver Files}
+\label{subsec:receiver-file-desc}
+
+\subsubsection{\texttt{Receiver.java}}
+\label{subsubsec:recv.java}
+
+Contains one static function for receiving files (via TCP or RBUDP), another for
+returning the transfer progress as a \texttt{double} value between 0 and 1
+(inclusive), and one for reading a \texttt{short int} value from a specified
+position in a \texttt{byte array}.
+
+\subsubsection{\texttt{ReceiverGUI.java}}
+\label{subsubsec:recv-gui.java}
+
+This file implements the graphical user interface for the receiver. It
+repeatedly calls the \texttt{receive} and \texttt{getProgress} functions defined
+in \texttt{Receiver.java} to receive files and report on the progress of the
+transfer operation.
+
+% --- Program Description ---------------------------------------------------- %
 
 \section{Program Description}
+\label{sec:prog-desc}
+
+\subsection{Sender}
+\label{subsec:prog-desc-sender}
+
+\begin{enumerate}
+  \item When \texttt{SenderGUI} is run, it processes the command-line arguments
+    passed to it, and sets up the graphical user interface.
+  \item Key elements of the user interface is a button the user can press to
+    select a file, using the system file chooser; and the send button, which the
+    user can press to initiate the file transfer when they are happy with the
+    file that they have chosen.
+  \item Upon pressing the send button, certain UI elements are disabled (like
+    the browse button, for instance). The file tranfer is then initiated on a
+    new thread, so that the UI can remain responsive.
+  \item The file transfer is started by invoking the \texttt{send} function,
+    defined in the \texttt{Sender.java} file, passing to it the name of the file
+    to send, destination host address, destination port, the protocol to use
+    (TCP or RBUDP), blast size, and the packet size.
+  \item The sender function will then attempt to connect to the receiver. If
+    successful it will communicate the same information to the receiver via TCP.
+  \item If the file is being transferred via TCP, the file will be opened for
+    reading, a number of bytes equal to the packet size will be read into a
+    buffer, and sent to the receiver. This will continue until the end of the
+    file is reached.
+  \item If the file is sent via RBUDP, the process is a bit more complex:
+    \begin{enumerate}
+      \item The sender will first create a number of packets equal to the blast
+        size.
+      \item It creates each packet by writing a sequence number, and data
+        length to the first four bytes (two for the sequence number and two for
+        the data length) of a byte array. Then it read file data into the
+        remaining number of elements in the array.\footnote{File data is read
+        as needed, not all at once.}
+      \item The send function then enters a \texttt{while} loop, where it waits
+        for the receiver to provide a list of all the missing packets, then
+        sends those packets to the receiver via UDP, and then goes back to
+        waiting for the missing packets list. This goes on until the all of the
+        packets in the current ``blast" is completely tranferred.
+      \item The process then restarts, and continues until the entire file is
+        sent to the receiver.
+    \end{enumerate}
+  \item When the file tranfer is complete, the previously disabled UI elements
+    are re-enabled and the user can again select a file to send.
+  \item Various UI alerts are used throughout the program to give feedback to
+    the user.
+  \item The user can stop a file transfer before it is finished by terminating
+    the application.
+  \item Upon termination all resources are closed.
+\end{enumerate}
+
+\subsection{Receiver}
+\label{subsec:prog-desc-receiver}
+
+\begin{enumerate}
+  \item When \texttt{ReceiverGUI} is run it processes its command-line arguments
+    and sets up the graphical user interface for interacting with the receiver.
+  \item Key elements of the UI is a buttton that can be pressed in order to
+    select a directory for saving files to; and a button to start listening for
+    incoming files. The selection of the directory is handled by the system file
+    chooser.
+  \item When the receive button is pressed, certain UI elements are disabled to
+    prevent the user from accidently doing something wrong (e.g., pressing the
+    receive button multiple times, thereby starting up multiple threads
+    listening for incoming files). On a new thread, the \texttt{receive}
+    function is called and it waits for a connection from the sender.
+  \item Upon connecting with the sender, the receiver first receives some basic
+    information about the transfer that is going to take place. (See the point 4
+    of \S\S\ref{subsec:prog-desc-sender}.)
+  \item If the transfer takes place using TCP, then the receiver will simply
+    read the byte data it receives from its socket input stream to disk until it
+    reaches the end of the stream.
+  \item If the file is being received via RBUDP, the following steps are
+    followed:
+    \begin{enumerate}
+      \item The receiver starts of the conversation by telling the sender that
+        all of the packets are missing. It does this by sending, via TCP, a
+        \texttt{boolean} array whose length is equal to the blast size with
+        all of its elements set to \texttt{false}.
+      \item The sender then sends all of the packets in the current ``blast".
+      \item The receiver tries to receive all \texttt{DatagramPacket}s, and
+        takes note of the number of packets, and which packets, it successfully
+        captures.
+      \item It then revises the list of packets the sender needs to retransmit,
+        and sends the updated list to the sender.
+      \item This process goes on until all packets in the ``blast" is received.
+        Then the data is extracted from the packets and written to the disk.
+      \item The process then restarts, and continues until the entire file is
+        received.
+    \end{enumerate}
+  \item While the \texttt{receive} function is busy receiving the file on one
+    thread, the \texttt{getProgress} function (also from the \texttt{Receiver}
+    class) is repeatedly called to determine the percentage of the file that
+    has been written to storage in order to update a progress bar.
+  \item Various UI alerts are used throughout the program to provide feedback to
+    the user.
+  \item The user can stop a file transfer before it is finished by terminating
+    the program.
+  \item Upon termination all resources are closed.
+\end{enumerate}
+
+% --- Experiments ------------------------------------------------------------ %
 
 \section{Experiments}
+\label{sec:exp}
+
+% --- Issues Encountered ----------------------------------------------------- %
 
 \section{Issues Encountered}
+\label{sec:issues}
 
-\section{Significant Data Structures}
+\subsection{RBUDP Sender-Receiver Synchronization}
+\label{subsec:send-recv-sync}
+
+Designing the algorithms used by the sender and receiver to transfer data via
+the RBUDP protocol was difficult, because our aim was to make our implementation
+efficient, but also elegant and easy to understand. In the end, we believe the
+extra time spent on designing our algorithms paid off, as we ended up with a
+succinct implementation that incurs very little overhead.\footnote{This is not
+to say our implementation has no shortcomings. In fact, we are aware of several
+ways in which it can be refined, but due to time constraints, we opted to keep
+it as it currently is.}
+
+The bugs we had to deal with in this area were also particularly insidious.
+
+\subsection{Number of Bytes to Write When Using RBUDP}
+\label{subsec:num-bytes-to-write}
+
+When transferring data via RBUDP, extracting and writing the bytes received to
+disk is mostly an easy task. But once the last part of the file is reached, and
+there is not enough data left to completely fill the last packet, it gives rise
+to the following problem: How should the receiver be informed of how many bytes
+in the last packet actually contains file data that needs to be written?
+
+We discuss how we handled this problem in \S\S\ref{subsec:last-packet}, but we
+also thought it worth mentioning here, since it was a difficult design decision
+to make. This is also one of the areas where we believe our implementation can
+be improved.
+
+\subsection{Connecting and Transferring over the Hamachi VPN}
+\label{subsec:connect-transfer-hamachi}
+
+We had considerable difficulty with connecting and transferring files over the
+Hamachi VPN, even though our programs performed well when we tested them
+locally.
+
+% --- Design ----------------------------------------------------------------- %
 
 \section{Design}
+\label{sec:design}
 
-\section{Compilation}
+\subsection{The Last RBUDP Packet}
+\label{subsec:last-packet}
 
-\section{Execution}
+A simple approach to transferring data via RBUDP is to:\footnote{The approach
+presented here is simplified so that we may focus on the problem of
+extracting and writing the data.}
+\begin{enumerate}
+  \item Select a set number of packets (blast size) and a set packet size.
+  \item Send this these quantities to the receiver.
+  \item Incrementally read a number of bytes equal to the packet size from the
+    file into a byte array. This will constitute a packet.
+  \item Once the number of packets created is equal to the blast size, send all
+    of the packets to the receiver.
+  \item The receiver gets each packet and extracts and writes the same set
+    number (communicated to it in step 2) of bytes to the new file.
+\end{enumerate}
+This works well enough until reaching the end of the file. As explained in
+\S\S\ref{subsec:num-bytes-to-write}, when reaching the end of the file, there is
+no longer enough bytes left to create a packet with the same size as all of the
+other packets that were sent before it. We will also not have the same number of
+packets to ``blast".
+
+If this problem goes unaddressed (and we assume the sender
+will still send the same number of packets, containing the same number of bytes)
+the receiver will end up almost always writing null bytes or junk data to the
+end of the file (because the receiver always extracts a set number of bytes
+from a set number of packets).
+
+There are a number of ways to address this problem, but we chose to (in addition
+to sequence numbers) include the number of data bytes at the start of the packet
+(after the sequence number). This way the receiver will always know exactly how
+many bytes of those it receives in a packet to write to disk.
+
+Our solution obviously has some (maybe even significant) overhead associated
+with it, but we settled on it due to the simplicity of the code required to
+implement it, as well as time constraints.
+
+% --- Compilation and Execution ---------------------------------------------- %
+
+\section{Compilation and Execution}
+\label{sec:comp-exec}
+
+It is assumed that the project will be run on Linux from a Bash shell.
+
+\subsection{Dependencies}
+\label{subsec:deps}
+
+In order to compile and run the sender and receiver the following dependencies
+must be installed and available on the \texttt{PATH}:
+\begin{itemize}
+  \item OpenJDK 18.0.2
+  \item OpenJFX 18.0.2.u2-1
+  \item Gradle 7.5
+\end{itemize}
+
+\subsection{Receiver}
+\label{subsec:deps-receiver}
+
+The receiver can be compiled and executed by following the next steps:
+From the project root directory \texttt{cd} into the \texttt{receiver} directory.
+Execute the script \texttt{run.sh}.
+
+\subsection{Sender}
+\label{subsec:deps-sender}
+
+From another terminal window, follow the same steps for the receiver, but in
+step 1 \texttt{cd} into the \texttt{sender} directory, and, when executing
+\texttt{run.sh}, supply as argument the IP address or hostname of the machine or
+network the receiver is running on.
+
+% --- Libraries -------------------------------------------------------------- %
 
 \section{Libraries}
+\label{sec:libs}
+
+We used only the following libraries for this project:
+\begin{itemize}
+  \item Java Standard API
+  \item JavaFX
+\end{itemize}
 
 \end{document}
