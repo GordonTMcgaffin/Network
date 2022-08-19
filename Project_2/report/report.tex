@@ -169,9 +169,7 @@ transfer operation.
   \item When \texttt{SenderGUI} is run, it processes the command-line arguments
     passed to it, and sets up the graphical user interface.
   \item Key elements of the user interface include a button the user can press
-    to select a file, using the system file chooser; and the send button, which
-    the user can press to initiate the file transfer when they are happy with
-    the file that they have chosen.
+    to select a file, using the system file chooser; a menu for selecting which protocol to use; and the send button, which the user can press to initiate the file transfer when they are happy with the file that they have chosen.
   \item Upon pressing the send button, certain UI elements are disabled (like
     the browse button, for instance). The file tranfer is then initiated on a
     new thread, so that the UI can remain responsive.
@@ -180,7 +178,7 @@ transfer operation.
     to send, destination host address, destination port, the protocol to use
     (TCP or RBUDP), blast size, and the packet size.
   \item The sender function will then attempt to connect to the receiver. If
-    successful it will communicate the same information to the receiver via TCP.
+    successful it will communicate the same information from step 4 to the receiver via TCP.
   \item If the file is being transferred via TCP, the file will be opened for
     reading, a number of bytes equal to the packet size will be read into a
     buffer, and sent to the receiver. This will continue until the end of the
@@ -197,8 +195,8 @@ transfer operation.
       \item The send function then enters a \texttt{while} loop, where it waits
         for the receiver to provide a list of all the missing packets, then
         sends those packets to the receiver via UDP, and then goes back to
-        waiting for the missing packets list. This goes on until the all of the
-        packets in the current ``blast" is completely tranferred.
+        waiting for the missing packets list. This goes on until all of the
+        packets in the current ``blast" are completely tranferred.
       \item The process then restarts, and continues until the entire file is
         sent to the receiver.
     \end{enumerate}
@@ -227,7 +225,7 @@ transfer operation.
     listening for incoming files). On a new thread, the \texttt{receive}
     function is called and it waits for a connection from the sender.
   \item Upon connecting with the sender, the receiver first receives some basic
-    information about the transfer that is going to take place. (See the point 4
+    information about the transfer that is going to take place. (See point 4
     of \S\S\ref{subsec:prog-desc-sender}.)
   \item If the transfer takes place using TCP, then the receiver will simply
     read the byte data it receives from its socket input stream to disk until it
@@ -235,17 +233,17 @@ transfer operation.
   \item If the file is being received via RBUDP, the following steps are
     followed:
     \begin{enumerate}
-      \item The receiver starts of the conversation by telling the sender that
+      \item The receiver starts the conversation by telling the sender that
         all of the packets are missing. It does this by sending, via TCP, a
         \texttt{boolean} array whose length is equal to the blast size with
         all of its elements set to \texttt{false}.
       \item The sender then sends all of the packets in the current ``blast".
       \item The receiver tries to receive all \texttt{DatagramPacket}s, and
-        takes note of the number of packets, and which packets, it successfully
+        takes note of the number of packets, and which packets it successfully
         captures.
       \item It then revises the list of packets the sender needs to retransmit,
         and sends the updated list to the sender.
-      \item This process goes on until all packets in the ``blast" is received.
+      \item This process goes on until all packets in the ``blast" are received.
         Then the data is extracted from the packets and written to the disk.
       \item The process then restarts, and continues until the entire file is
         received.
@@ -253,7 +251,7 @@ transfer operation.
   \item While the \texttt{receive} function is busy receiving the file on one
     thread, the \texttt{getProgress} function (also from the \texttt{Receiver}
     class) is repeatedly called to determine the percentage of the file that
-    has been written to storage in order to update a progress bar.
+    have been written to storage in order to update a progress bar.
   \item Various UI alerts are used throughout the program to provide feedback to
     the user.
   \item The user can stop a file transfer before it is finished by terminating
@@ -538,7 +536,7 @@ presented here is simplified so that we may focus on the problem of
 extracting and writing the data from a byte array.}
 \begin{enumerate}
   \item Select a set number of packets (blast size) and a set packet size.
-  \item Send this these quantities to the receiver.
+  \item Send these quantities to the receiver.
   \item Incrementally read a number of bytes equal to the packet size from the
     file into a byte array. This will constitute a packet.
   \item Once the number of packets created is equal to the blast size, send all
