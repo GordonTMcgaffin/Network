@@ -169,7 +169,9 @@ transfer operation.
   \item When \texttt{SenderGUI} is run, it processes the command-line arguments
     passed to it, and sets up the graphical user interface.
   \item Key elements of the user interface include a button the user can press
-    to select a file, using the system file chooser; a menu for selecting which protocol to use; and the send button, which the user can press to initiate the file transfer when they are happy with the file that they have chosen.
+    to select a file, using the system file chooser; a menu for selecting which
+    protocol to use; and the send button, which the user can press to initiate
+    the file transfer when they are happy with the file that they have chosen.
   \item Upon pressing the send button, certain UI elements are disabled (like
     the browse button, for instance). The file tranfer is then initiated on a
     new thread, so that the UI can remain responsive.
@@ -178,7 +180,8 @@ transfer operation.
     to send, destination host address, destination port, the protocol to use
     (TCP or RBUDP), blast size, and the packet size.
   \item The sender function will then attempt to connect to the receiver. If
-    successful it will communicate the same information from step 4 to the receiver via TCP.
+    successful it will communicate the same information from step 4 to the
+    receiver via TCP.
   \item If the file is being transferred via TCP, the file will be opened for
     reading, a number of bytes equal to the packet size will be read into a
     buffer, and sent to the receiver. This will continue until the end of the
