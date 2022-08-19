@@ -6,15 +6,20 @@
 
 \documentclass[10pt, a4paper]{article}
 
+\usepackage{booktabs}
+\usepackage{graphicx}
+\graphicspath{ {./images/exp1/}{./images/exp2/}{./images/exp3/} }
+
 \title{CS 354 Project 2: Reliable Blast User Datagram Protocol (RBUDP)}
 \author{Group 41: \vspace{0.5em} \\
         G. Mcgaffin (23565608@sun.ac.za) \vspace{0.3em} \\
         J.\ P.\ Visser (21553416@sun.ac.za)}
-\date{19 August 2022}
+\date{\vspace{1em} 19 August 2022}
 
 \begin{document}
 
 \maketitle
+\newpage
 
 \tableofcontents
 \newpage
@@ -111,7 +116,7 @@ byte size of the file that was transferred. Using this check we can inform the
 user not only about the completion of the transfer, but also whether it was
 successful.
 
-% --- File Description ------------------------------------------------------- %
+% --- File Descriptions ------------------------------------------------------ %
 
 \section{File Descriptions}
 \label{sec:file-desc}
@@ -163,10 +168,10 @@ transfer operation.
 \begin{enumerate}
   \item When \texttt{SenderGUI} is run, it processes the command-line arguments
     passed to it, and sets up the graphical user interface.
-  \item Key elements of the user interface is a button the user can press to
-    select a file, using the system file chooser; and the send button, which the
-    user can press to initiate the file transfer when they are happy with the
-    file that they have chosen.
+  \item Key elements of the user interface include a button the user can press
+    to select a file, using the system file chooser; and the send button, which
+    the user can press to initiate the file transfer when they are happy with
+    the file that they have chosen.
   \item Upon pressing the send button, certain UI elements are disabled (like
     the browse button, for instance). The file tranfer is then initiated on a
     new thread, so that the UI can remain responsive.
@@ -212,10 +217,10 @@ transfer operation.
 \begin{enumerate}
   \item When \texttt{ReceiverGUI} is run it processes its command-line arguments
     and sets up the graphical user interface for interacting with the receiver.
-  \item Key elements of the UI is a buttton that can be pressed in order to
-    select a directory for saving files to; and a button to start listening for
-    incoming files. The selection of the directory is handled by the system file
-    chooser.
+  \item Key elements of the UI include a buttton that can be pressed in order
+    to select a directory for saving files to; and a button to start listening
+    for incoming files. The selection of the directory is handled by the system
+    file chooser.
   \item When the receive button is pressed, certain UI elements are disabled to
     prevent the user from accidently doing something wrong (e.g., pressing the
     receive button multiple times, thereby starting up multiple threads
@@ -261,6 +266,225 @@ transfer operation.
 \section{Experiments}
 \label{sec:exp}
 
+\subsection{Comparison of TCP and RBUDP Throughput}
+\label{subsec:comp-tcp-rbudp-throughput}
+
+\subsubsection{Experiment}
+\label{subsubsec:exp-1}
+
+Determine which protocol, TCP or RBUDP, has higher throughput.
+
+\subsubsection{Hypothesis}
+\label{subsubsec:exp-1}
+
+During the development process we found RBUDP to reliably be slower than TCP
+when testing under similar conditions. Therefore, we expect the throughput of
+TCP to be higher than that of RBUDP.
+
+\subsubsection{Test}
+\label{subsubsec:test-1}
+
+For both the TCP and RBUDP protocols, capture a set number of packets using
+the command-line utility \texttt{tcpdump}, and compare the average number of
+bytes per second using Wireshark (see Figure \ref{fig:exp1-1} and Figure
+\ref{fig:exp1-2}). The experiment is carried out on the local network in order
+to prevent (or at least mitigate) packet dropping from influencing the results.
+
+\begin{figure}
+  \centering
+  \includegraphics[width=12cm]{exp1-1}
+  \caption{Transferal of a file using RBUDP while capturing 1000 packets using
+  \texttt{tcpdump}. (Note that all images in this document have a very high
+  resolution, so the reader may zoom in on them for closer inspection.)}
+  \label{fig:exp1-1}
+\end{figure}
+
+\begin{figure}
+  \centering
+  \includegraphics[width=12cm]{exp1-3}
+  \caption{Wireshark's ``Capture File Properties" view of the 1000 packets
+  captured using \texttt{tcpdump}}
+  \label{fig:exp1-2}
+\end{figure}
+
+\subsubsection{Findings}
+\label{subsubsec:findings-1}
+
+Somewhat surprisingly, we found that the RBUDP protocol has higher throughput
+than the TCP protocol. Wireshark's data analysis indicated that RBUDP has, on
+average, a 30.7\% higher throughput (on the local network of the machine we used
+to conduct the experiment).
+
+This contradicts the faster transfer rate we see for TCP. From the data analysis
+we saw that despite sending 1000 byte packets at a time, both for TCP and RBUDP,
+TCP transferred packets with a size of 25676 bytes on average. Our suspicion is
+that, at a lower level, the network architecture collects the bytes written to
+the socket output stream and only sends them once a packet with a large enough
+size to meet certain requirements (most likely for the sake of efficiency) can
+be created.
+
+\subsection{RBUDP Transfer Rate}
+\label{subsec:rbudp-trans-rate}
+
+\subsubsection{Experiment}
+\label{subsubsec:exp-2}
+
+Determine the correlation of blast size and transfer rate for RBUDP.
+
+\subsubsection{Hypothesis}
+\label{subsubsec:exp-2}
+
+We expect the blast size and transfer rate to be positively correlated, but only
+up to a certain point, whereafter the correlation will become negative. We also
+expect this correlation to be influenced by the packet size. Our expectation is
+based on the logic that a larger blast size will cause data to arrive more
+rapidly for the receiver to process, which will result in a higher transfer
+rate. However, once the blast size is increased beyond a certain threshold, a
+large number of packets will be dropped while the receiver is busy processing a
+packet, which will result in a greatly decreased transfer rate.
+
+\subsubsection{Test}
+\label{subsubsec:test-2}
+
+Run the sender program with different blast sizes while keeping the packet size
+constant. Measure the time it takes to complete a file transfer in each case
+(using the same file in each case). Then compare the times. Conduct this
+experiment on a local network to avoid introducing confounding factors.
+
+We used the blast sizes listed in Table \ref{tab:blast-time}, and kept the
+packet size fixed at 1000 bytes. To measure transfer times we used the
+\texttt{stat} command-line utility, part of the \texttt{coreutils} package, to
+get the received file's \texttt{Birth} and \texttt{Change} times. The transfer
+time can be found by taking the difference between these two times. See Figure
+\ref{fig:exp2-1} and Figure \ref{fig:exp2-2}.
+
+\begin{figure}
+  \centering
+  \includegraphics[width=12cm]{exp2-1}
+  \caption{The sender using a blast size of 250 to transfer a file to the
+  receiver.}
+  \label{fig:exp2-1}
+\end{figure}
+
+\begin{figure}
+  \centering
+  \includegraphics[width=12cm]{exp2-2}
+  \caption{After the file transfer, using a blast size of 250, is successfully
+  completed, the \texttt{stat} utility is used to determine the \texttt{Birth}
+  and \texttt{Change} times. The number of seconds to complete the transfer is
+  then calculated in the Python interpreter.}
+  \label{fig:exp2-2}
+\end{figure}
+
+\subsubsection{Findings}
+\label{subsubsec:findings-2}
+
+Our hypothesis turned out to be correct. Table \ref{tab:blast-time} shows that
+as the blast size increases exponentially, the transfer time decreases at a
+similar rate, which indicates that blast size and transfer rate are positively
+correlated. At a blast size of 128000, the transfer took too long for us to wait
+until its completion. Therefore, there must be a tipping point, somewhere between
+64000 and 128000, where the correlation becomes negative.
+
+\begin{table}
+  \centering
+  \begin{tabular}{@{}rr@{}}
+    \toprule
+    Blast Size & Time (s) \\
+    \midrule
+    1000 & 70 \\
+    2000 & 40 \\
+    4000 & 20 \\
+    8000 & 17 \\
+    16000 & 10 \\
+    32000 & 5 \\
+    64000 & 7 \\
+    128000 & $\infty$ \\
+    \bottomrule
+  \end{tabular}
+  \caption{The different blast sizes and their associated transfer times in
+  seconds when transferring a 29 MB file. The transfer time for blast size
+  128000 is indicated as $\infty$, because the transfer took too long to
+  complete -- in fact, it never even reached the point where the receiver could
+  write data to the file.}
+  \label{tab:blast-time}
+\end{table}
+
+\subsection{RBUDP Packet Size}
+\label{subsec:rbudp-pkt-sz}
+
+\subsubsection{Experiment}
+\label{subsubsec:exp-3}
+
+Determine the correlation between packet size and transfer rate for RBUDP.
+
+\subsubsection{Hypothesis}
+\label{subsubsec:exp-3}
+
+We expect results similar to those seen in \S\S\ref{subsec:rbudp-trans-rate}. We
+expect the transfer rate to increase as the packet size increases, and to then
+again decrease beyond a certain threshold.
+
+\subsubsection{Test}
+\label{subsubsec:test-3}
+
+Run the sender multiple times using a different packet size for each run, while
+keeping the blast size constant. Measure the time it takes for each file
+transfer to finish, and determine the correlation, if any. Be sure to use a
+local network to ensure that packet dropping does not influence the results.
+
+We conducted the experiment using a constant blast size of 1000 packets, and the
+different packet sizes shown in Table \ref{tab:packet-time}. Figure
+\ref{fig:exp3-1} shows the result obtained by running the sender with a packet
+size of 10000.
+
+\begin{figure}
+  \centering
+  \includegraphics[width=12cm]{exp3-2}
+  \caption{The result of running the sender using a packet size of 10000.}
+  \label{fig:exp3-1}
+\end{figure}
+
+\begin{figure}
+  \centering
+  \includegraphics[width=12cm]{exp3-3}
+  \caption{\texttt{SocketException} thrown when using a packet size of 80000.}
+  \label{fig:exp3-2}
+\end{figure}
+
+\subsubsection{Findings}
+\label{subsubsec:findings-3}
+
+Our tests partially confirm our hypothesis. In Table \ref{tab:packet-time} it
+can clearly be seen that as the packet size doubles, the transfer time gets cut
+in half, almost exactly. This indicates a positive correlation between packet
+size and transfer rate.
+
+We were, however, not able to test whether there exists a
+tipping point where the quantities become negatively correlated: When we
+attempted to test the sender with a packet size of 80000, a
+\texttt{SocketException} was thrown by the sender (see Figure \ref{fig:exp3-2}).
+
+\begin{table}
+  \centering
+  \begin{tabular}{@{}rr@{}}
+    \toprule
+    Packet Size & Time (s) \\
+    \midrule
+    10000 & 117 \\
+    20000 & 61 \\
+    40000 & 32 \\
+    80000 & NA \\
+    \bottomrule
+  \end{tabular}
+  \caption{The different packet sizes and their associated transfer times in
+  seconds when transferring a 393 MB file. The transfer time for packet size
+  80000 is indicated as NA, because using a packet size this large caused a
+  \texttt{SocketException} to be thrown.}
+  \label{tab:packet-time}
+
+\end{table}
+
 % --- Issues Encountered ----------------------------------------------------- %
 
 \section{Issues Encountered}
@@ -275,7 +499,7 @@ efficient, but also elegant and easy to understand. In the end, we believe the
 extra time spent on designing our algorithms paid off, as we ended up with a
 succinct implementation that incurs very little overhead.\footnote{This is not
 to say our implementation has no shortcomings. In fact, we are aware of several
-ways in which it can be refined, but due to time constraints, we opted to keep
+ways in which it can be refined, but due to time constraints we opted to keep
 it as it currently is.}
 
 The bugs we had to deal with in this area were also particularly insidious.
@@ -311,7 +535,7 @@ locally.
 
 A simple approach to transferring data via RBUDP is to:\footnote{The approach
 presented here is simplified so that we may focus on the problem of
-extracting and writing the data.}
+extracting and writing the data from a byte array.}
 \begin{enumerate}
   \item Select a set number of packets (blast size) and a set packet size.
   \item Send this these quantities to the receiver.
