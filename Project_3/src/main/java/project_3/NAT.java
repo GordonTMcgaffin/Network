@@ -3,20 +3,26 @@ package project_3;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class NAT {
+    //Client IP:PORT | NATIP:Client assigned PORT
     private static ConcurrentHashMap<String, String> NAT_TABLE = new ConcurrentHashMap<String, String>();
+    //Client IP | Client thread
     private static ConcurrentHashMap<String, ClientHandler> clients = new ConcurrentHashMap<String, ClientHandler>();
     private static ExecutorService threadPool = Executors.newFixedThreadPool(10);
     public static byte[] MAC;
 
     public static void main(String[] args) {
+
         int port = Integer.parseInt(args[0]);
         int threadAmount = Integer.parseInt(args[1]);
+        boolean[] portPool = new boolean[threadAmount];
+        Arrays.fill(portPool, false);
         MAC = genMAC();
         ServerSocket listener = null;
         try {
@@ -32,10 +38,12 @@ public class NAT {
         while (true) {
             try {
                 client = listener.accept();
-                System.out.println("[NAT]> Client connected");
-                ClientHandler clientThread = new ClientHandler(client, NAT_TABLE, clients, MAC);
-                clients.put(clientThread.IPString, clientThread);
-                threadPool.execute(clients.get(clientThread.IPString));
+                ClientHandler clientThread = new ClientHandler(client, NAT_TABLE, clients, MAC, port, portPool);
+                NAT_TABLE.put(clientThread.IPString + ":" + clientThread.PortString, "127.0.0.1" + ":" + clientThread.clientPort);
+                for (String key : NAT_TABLE.keySet()) {
+                    System.out.println(key + " | " + NAT_TABLE.get(key));
+                }
+                threadPool.execute(clientThread);
             } catch (IOException ioe) {
                 System.out.println("[NAT]> Error occurred while connecting client");
             }
@@ -62,32 +70,49 @@ public class NAT {
         return MAC;
     }
 
+    public static String genPort() {
+        Random random = new Random();
+        String port = random.nextInt(99) + "" + random.nextInt(99);
+        if (port.equals("9090")) port = genPort();
+        return port;
+    }
+
 }
 
 /*
 
-    IP header for ICMP
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |   4   | Start of data |       0       |    Total Length       |
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |         Identification (0)    |Flags(0)|  Fragment Offset(0)  |
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |  Time to Live |        1      |         Header Checksum       |
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |                       Source Address                          |
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |                    Destination Address                        |
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    Ethernet header
+           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+           |                          MAC Destination                      |
+           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+           | MAC source |    Length    |                Data               |
+           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+
+
+    IP header
+           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+           |      Start of data           |             Total Length       |
+           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+           |  Time to Live   |              Protocol                       |
+           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+           |                       Source Address                          |
+           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+           |                    Destination Address                        |
+           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+            protocol
+                1 - ICMP
+                6 - TCP
+                17 - UDP
 
 
 
     ICMP
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |     Type      |     Code      |          Checksum             |
+   |     Type      |                    Code                       |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |                             unused                            |
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |      Internet Header + 64 bits of Original Data Datagram      |
+   |                             Data                              |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 
@@ -109,6 +134,26 @@ public class NAT {
       4 = fragmentation needed and DF set;
 
       5 = source route failed.
+
+ Type
+
+      8 for echo message;
+
+      0 for echo reply message.
+
+   Code
+
+      0
+
+   Type
+
+      15 for information request message;
+
+      16 for information reply message.
+
+   Code
+
+      0
 
     DHCP
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+

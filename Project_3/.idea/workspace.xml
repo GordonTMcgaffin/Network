@@ -5,12 +5,15 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="d5441239-06ab-4af5-889e-0e221bb98d33" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/compiler.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/encodings.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/jarRepositories.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/Project_3.iml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/project_3/Client.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/project_3/Client.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/project_3/ClientHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/project_3/ClientHandler.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/project_3/NAT.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/project_3/NAT.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/soho/App.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/test/java/soho/AppTest.java" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -82,7 +85,7 @@
         <option name="Make" enabled="true" />
       </method>
     </configuration>
-    <configuration name="NAT" type="Application" factoryName="Application" nameIsGenerated="true">
+    <configuration name="NAT" type="Application" factoryName="Application" singleton="false" nameIsGenerated="true">
       <option name="MAIN_CLASS_NAME" value="project_3.NAT" />
       <module name="Project_3" />
       <option name="PROGRAM_PARAMETERS" value="9090 10" />
@@ -124,5 +127,10 @@
         </entry>
       </map>
     </option>
+  </component>
+  <component name="com.intellij.coverage.CoverageDataManagerImpl">
+    <SUITE FILE_PATH="coverage/Project_3$NAT.ic" NAME="NAT Coverage Results" MODIFIED="1661670637879" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="idea" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false">
+      <FILTER>project_3.*</FILTER>
+    </SUITE>
   </component>
 </project>
