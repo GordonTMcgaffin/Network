@@ -25,10 +25,11 @@ public class NAT {
         Arrays.fill(portPool, false);
         MAC = genMAC();
         ServerSocket listener = null;
+
+
         try {
             System.out.println("[NAT]> Starting NAT-box. . .");
             listener = new ServerSocket(port);
-
         } catch (IOException e) {
             System.out.println("[NAT]> Socket setup error");
             System.exit(0);
@@ -39,7 +40,9 @@ public class NAT {
             try {
                 client = listener.accept();
                 ClientHandler clientThread = new ClientHandler(client, NAT_TABLE, clients, MAC, port, portPool);
-                NAT_TABLE.put(clientThread.IPString + ":" + clientThread.PortString, "127.0.0.1" + ":" + clientThread.clientPort);
+                if (clientThread.IPString.split("\\.")[0].equals("10"))
+                    NAT_TABLE.put(clientThread.IPString + ":" + clientThread.PortString, "127.0.0.1" + ":" + clientThread.clientPort);
+                System.out.println("NATTABLE");
                 for (String key : NAT_TABLE.keySet()) {
                     System.out.println(key + " | " + NAT_TABLE.get(key));
                 }
