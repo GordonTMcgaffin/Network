@@ -18,26 +18,16 @@ public class Client {
     private static String IPString;
     private static String MACString;
     private static byte[] NATMAC;
+    private static String host;
 
     public static void main(String args[]) {
-        String host = args[0];
+        host = args[0];
         int port = Integer.parseInt(args[1]);
         int location = Integer.parseInt(args[2]); // location = 0 means that the client is a local connection. Location = 1 means that the client is external.
 
         MAC = genMAC();
 
         BufferedReader inputReader = new BufferedReader(new InputStreamReader(System.in));
-        String protocol = "";
-        while (!(protocol.equals("TCP") || protocol.equals("UDP"))) {
-            System.out.print("[NAT] Please select protocol (TCP/UDP)> ");
-            try {
-                protocol = inputReader.readLine().toUpperCase().trim();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-            if (!(protocol.equals("TCP") || protocol.equals("UDP")))
-                System.out.println("[NAT]> Please enter a valid protocol.");
-        }
 
         System.out.println("[NAT]> Connecting to NAT. . . ");
 
@@ -47,9 +37,24 @@ public class Client {
             inStream = new ObjectInputStream(serverSocket.getInputStream());
             outStream.writeObject(location);
 
-            IP = (int[]) inStream.readObject();
-            NATMAC = (byte[]) inStream.readObject();
-            Port = (byte[]) inStream.readObject();
+            IP = new int[4];
+            NATMAC = new byte[6];
+            Port = genPort();
+
+            outStream.writeObject(genDHCP());
+            byte[] DHCP = (byte[]) inStream.readObject();
+
+            IP[0] = (DHCP[21] & 0xff);
+            IP[1] = (DHCP[22] & 0xff);
+            IP[2] = (DHCP[23] & 0xff);
+            IP[3] = (DHCP[24] & 0xff);
+
+            NATMAC[0] = DHCP[29];
+            NATMAC[1] = DHCP[30];
+            NATMAC[2] = DHCP[31];
+            NATMAC[3] = DHCP[32];
+            NATMAC[4] = DHCP[33];
+            NATMAC[5] = DHCP[34];
 
             PortString = (Port[0] & 0xff) + "" + (Port[1] & 0xff);
             IPString = IPtoString(IP);
@@ -66,7 +71,10 @@ public class Client {
             System.out.println("===================================");
             System.out.println();
 
-        } catch (IOException | ClassNotFoundException e) {
+        } catch (IOException e) {
+            System.out.println("[NAT]> Connection to NAT failed ");
+            System.exit(0);
+        } catch (ClassNotFoundException e) {
             System.out.println("[NAT]> Connection to NAT failed ");
             System.exit(0);
         }
@@ -84,7 +92,6 @@ public class Client {
 //                        byte[] sourceIPBytes = {packet[17], packet[18], packet[19], packet[20]};
 //                        String destIP = (packet[21] & 0xff) + "." + (packet[22] & 0xff) + "." + (packet[23] & 0xff) + "." + (packet[24] & 0xff);
 //                        byte[] destIPBytes = {packet[21], packet[22], packet[23], packet[24]};
-                        System.out.println((packet[24] & 0xff));
                         if ((packet[24] & 0xff) == 1) {
                             if ((packet[36] & 0xff) < 10) {
                                 sourcePort = (packet[35] & 0xff) + "0" + (packet[36] & 0xff);
@@ -92,22 +99,21 @@ public class Client {
                                 sourcePort = (packet[35] & 0xff) + "" + (packet[36] & 0xff);
                             }//might be able to remove
                             //ICMP packet
-                            System.out.println((packet[33] & 0xff));
                             if ((packet[33] & 0xff) == 16) {
                                 //ICMP response
                                 messageBytes = new byte[packet.length - 36];
-                                System.arraycopy(packet, 27, messageBytes, 0, packet.length - 36);
+                                System.arraycopy(packet, 36, messageBytes, 0, packet.length - 36);
                                 String message = new String(messageBytes);
-                                System.out.println();
+
                                 if (location == 0)
                                     System.out.println("[" + IPString + ":" + PortString + "]> Available Clients");
                                 if (location == 1)
-                                    System.out.println("[" + IPString + ":" + PortString + "]> Available ports");
-                                System.out.println(message.split(":", 2)[1]);
-                                System.out.print("[" + IPString + "]> ");
+                                    System.out.println("[" + IPString + ":" + PortString + "]> Available routes");
+
+                                if (message.split(":", 2).length > 1) System.out.println(message.split(":", 2)[1]);
+                                System.out.print("[" + IPString + ":" + PortString + "]> ");
                             } else if ((packet[33] & 0xff) == 8) {
                                 //ICMP echo
-                                System.out.println("Echo");
                                 packet = genICMP(sourceIP + ":" + sourcePort, 0, 1);
                                 outStream.writeObject(packet);
                             } else if ((packet[33] & 0xff) == 0) {
@@ -116,17 +122,18 @@ public class Client {
                             } else if ((packet[33] & 0xff) == 3) {
                                 //ICMP error message
                                 if ((packet[34] & 0xff) == 5)
-                                    System.out.println(" Address entered is unreachable");
+                                    System.out.println("Address entered is unreachable");
                                 if ((packet[34] & 0xff) == 3)
-                                    System.out.println(" Port " + sourcePort + " is unreachable");
+                                    System.out.println("Address entered is unreachable");
                                 System.out.print("[" + IPString + ":" + PortString + "]> ");
                             }
-                        } else if ((packet[24] & 0xff) == 6) {
+                        } else if ((packet[24] & 0xff) == 6 || (packet[24] & 0xff) == 17) {
                             if ((packet[34] & 0xff) < 10) {
                                 sourcePort = (packet[33] & 0xff) + "0" + (packet[34] & 0xff);
                             } else {
                                 sourcePort = (packet[33] & 0xff) + "" + (packet[34] & 0xff);
                             }
+
                             //TCP/UDP message
                             messageBytes = new byte[packet.length - 38];
                             System.arraycopy(packet, 38, messageBytes, 0, packet.length - 38);
@@ -134,6 +141,7 @@ public class Client {
                             System.out.println();
                             System.out.println("[" + sourceIP + ":" + sourcePort + "]> " + message);
                             System.out.print("[" + IPString + ":" + PortString + "]> ");
+                            //outStream.writeObject((sourceIP + ":" + sourcePort).getBytes());
                         }
 
                     } catch (IOException | ClassNotFoundException e) {
@@ -173,11 +181,23 @@ public class Client {
                                 packet = genICMP(inputs, 8, 1);
                                 outStream.writeObject(packet);
                             } else if (input.equals("2")) {
+                                String protocol = "";
+                                while (!(protocol.equals("TCP") || protocol.equals("UDP"))) {
+                                    System.out.print("[NAT] Please select protocol (TCP/UDP)> ");
+                                    try {
+                                        protocol = inputReader.readLine().toUpperCase().trim();
+                                    } catch (IOException e) {
+                                        throw new RuntimeException(e);
+                                    }
+                                    if (!(protocol.equals("TCP") || protocol.equals("UDP")))
+                                        System.out.println("[NAT]> Please enter a valid protocol.");
+                                }
                                 //Send message using selected protocol
                                 System.out.println("[" + IPString + ":" + PortString + "]> Please enter <IP Address:Port> <Message>");
                                 System.out.print("[" + IPString + ":" + PortString + "]> ");
                                 String[] inputs = inputReader.readLine().split(" ", 2);
-                                packet = genMSGPacket(inputs, 6);
+                                if (protocol.equals("TCP")) packet = genMSGPacket(inputs, 6);
+                                if (protocol.equals("UDP")) packet = genMSGPacket(inputs, 17);
                                 outStream.writeObject(packet);
                                 System.out.print("[" + IPString + ":" + PortString + "]> ");
                             } else {
@@ -185,7 +205,7 @@ public class Client {
                                 System.out.print("[" + IPString + ":" + PortString + "]> ");
                             }
                         } else {
-                            System.out.println();
+
                             System.out.print("[" + IPString + ":" + PortString + "]> ");
                         }
                     } catch (IOException e) {
@@ -218,6 +238,13 @@ public class Client {
             IPString = IPString + "." + ip[i];
         }
         return IPString;
+    }
+
+    public static byte[] genPort() {
+        byte[] port = new byte[2];
+        port[0] = (byte) Math.floor(Math.random() * (99 - 10 + 1) + 10);
+        port[1] = (byte) Math.floor(Math.random() * (99 - 10 + 1) + 10);
+        return port;
     }
 
     public static byte[] genICMP(String data, int type, int protocol) throws IOException {
@@ -313,6 +340,38 @@ public class Client {
         return byteStream.toByteArray();
     }
 
+    public static byte[] genDHCP() throws IOException {
+
+        String[] serverIP = host.split("\\.");
+        byte[] preamble = new byte[7];
+        for (int i = 0; i < 7; i++) {
+            preamble[i] = (byte) (i % 2);
+        }
+
+        ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
+
+        //Ethernet
+        byteStream.write(preamble);// Preamble: 7 bytes : 0
+        byteStream.write((byte) 171); //stf 1 byte : 7
+        byteStream.write(NATMAC); // MAC destination : 6 bytes : 8
+        byteStream.write(MAC); // MAC source : 6 bytes: 14
+        byteStream.write((byte) 25);// Length : 1 byte : 20
+
+        //DHCP
+        byteStream.write((byte) 1);
+        byteStream.write((byte) 1);
+        byteStream.write((byte) 1);
+        byteStream.write((byte) 1);//Source IP : 4 bytes; 21
+        byteStream.write((byte) Integer.parseInt(serverIP[0]));
+        byteStream.write((byte) Integer.parseInt(serverIP[1]));
+        byteStream.write((byte) Integer.parseInt(serverIP[2]));
+        byteStream.write((byte) Integer.parseInt(serverIP[3]));//Server IP : 4 bytes; 25
+        byteStream.write(MAC);// Client MAC : 6 bytes; 29
+        byteStream.write(Port);//Source port : 2 byte : 35:32
+
+        return byteStream.toByteArray();
+    }
+
 
     /*
     Headers to be included for each packet that is sent.
@@ -367,6 +426,21 @@ public class Client {
                      +--------+--------+--------+--------+
                      |               data                |
                      +--------+--------+--------+--------+
+
+     DHCP
+
+                   +-------------------------------+-------------------------------+
+                   |                       Client ip addr                          |
+                   +---------------------------------------------------------------+
+                   |                      server ip address                        |
+                   +---------------------------------------------------------------+
+                   |                                                               |
+                   |                            MAC                                |
+                   |                                                               |
+                   |                                                               |
+                   +---------------------------------------------------------------+
+                   |                          Client port                          |
+                   +---------------------------------------------------------------+
      */
 
 }

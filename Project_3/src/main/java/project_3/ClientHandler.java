@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
-import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ClientHandler implements Runnable {
@@ -34,7 +33,7 @@ public class ClientHandler implements Runnable {
         this.clients = clientList;
         this.NATMAC = NMAC;
         this.NATPort = NPort;
-        this.Port = genPort();
+        this.Port = new byte[2];
         this.portPool = portPool;
 
 
@@ -48,16 +47,15 @@ public class ClientHandler implements Runnable {
         } catch (IOException | ClassNotFoundException e) {
             throw new RuntimeException(e);
         }
+        //The port assigned to listen to a client for port forwarding
         clientPort = -1;
         if (location == 0) {
             int p;
             for (p = 0; p < portPool.length; p++) if (!portPool[p]) break;
             portPool[p] = true;
             clientPort = 9000 + p;
-            System.out.println(Port[0] & 0xff);
-
         }
-        PortString = (Port[0] & 0xff) + "" + (Port[1] & 0xff);
+
         if (location == 0) {
             //Internal client
             IP = genIP(10);
@@ -69,15 +67,27 @@ public class ClientHandler implements Runnable {
         IPString = IPtoString(IP);
 
         try {
-            //Might replace with ARP
-            outStream.writeObject(IP);
-            outStream.writeObject(NATMAC);
-            outStream.writeObject(Port);
-        } catch (IOException e) {
+            byte[] DHCP = (byte[]) inStream.readObject();
+            Port[0] = DHCP[35];
+            Port[1] = DHCP[36];
+
+            DHCP[21] = (byte) IP[0];
+            DHCP[22] = (byte) IP[1];
+            DHCP[23] = (byte) IP[2];
+            DHCP[24] = (byte) IP[3];
+
+            DHCP[29] = NATMAC[0];
+            DHCP[30] = NATMAC[1];
+            DHCP[31] = NATMAC[2];
+            DHCP[32] = NATMAC[3];
+            DHCP[33] = NATMAC[4];
+            DHCP[34] = NATMAC[5];
+
+            outStream.writeObject(DHCP);
+        } catch (IOException | ClassNotFoundException e) {
             throw new RuntimeException(e);
         }
-
-        System.out.println(IPString + ":" + PortString);
+        PortString = (Port[0] & 0xff) + "" + (Port[1] & 0xff);
         clients.put(IPString + ":" + PortString, this);
         System.out.println("[Thread: " + IPString + "]> Client connected");
     }
@@ -90,6 +100,7 @@ public class ClientHandler implements Runnable {
 
                 packet = (byte[]) inStream.readObject();
 
+
                 String sourceIP = (packet[25] & 0xff) + "." + (packet[26] & 0xff) + "." + (packet[27] & 0xff) + "." + (packet[28] & 0xff);
                 String sourcePort = "";
 
@@ -97,13 +108,13 @@ public class ClientHandler implements Runnable {
                 String destIP = (packet[29] & 0xff) + "." + (packet[30] & 0xff) + "." + (packet[31] & 0xff) + "." + (packet[32] & 0xff);
                 String destPort = "";
 
-
                 if ((packet[24] & 0xff) == 1) {
                     if ((packet[36] & 0xff) < 10) {
                         sourcePort = (packet[35] & 0xff) + "0" + (packet[36] & 0xff);
                     } else {
                         sourcePort = (packet[35] & 0xff) + "" + (packet[36] & 0xff);
                     }
+                    Port = new byte[]{packet[35], packet[36]};
                     if ((packet[38] & 0xff) < 10) {
                         int portNum = ((packet[37] & 0xff) * 100) + (packet[38] & 0xff);
                         destPort = "" + portNum;
@@ -113,7 +124,7 @@ public class ClientHandler implements Runnable {
                     //ICMP packet
                     if ((packet[33] & 0xff) == 15) {
                         //Client sent a list request
-                        System.out.println("[Thread: " + IPString + "]> Sending client list from to " + sourceIP + ":" + sourcePort);
+                        System.out.println("[Thread: " + IPString + "]> Sending client list to " + sourceIP + ":" + sourcePort);
                         String clientList = "Clients:";
                         if ((packet[25] & 0xff) == 10) {
                             //Request was made by internal client
@@ -136,16 +147,12 @@ public class ClientHandler implements Runnable {
                         if ((packet[25] & 0xff) == 10) {
                             //local client is sending an echo request
                             if ((packet[29] & 0xff) == 10) {
-                                System.out.println("!");
                                 //request is being sent to internal client
-                                System.out.println(destIP + ":" + destPort);
                                 clients.get(destIP + ":" + destPort).outStream.writeObject(packet);
                             } else {
                                 //request is being sent to external client
                                 //translate local source ip to global ip
-                                System.out.println(clients.get(destIP + ":" + destPort));
                                 try {
-                                    System.out.println(destIP + ":" + destPort);
                                     clients.get(destIP + ":" + destPort).outStream.writeObject(localToGlobal(packet, sourceIP, sourcePort, 25, 35));
                                 } catch (NullPointerException npe) {
                                     // Send ICMP back with a no route found error
@@ -156,7 +163,6 @@ public class ClientHandler implements Runnable {
                             //External client is sending an echo request
                             if ((packet[29] & 0xff) == 123) {
                                 //External client is trying to send to external client, drop the packet
-                                //--------------------------
                                 clients.get(sourceIP + ":" + sourcePort).outStream.writeObject(genICMP("127.0.0.1:9090", NATMAC, 3, 1, null, 5, destIP + ":" + destPort));//Send ICMP for packet drop
                             } else {
                                 //External client is sending to internal client, translate global dest ip to local dest ip
@@ -175,8 +181,7 @@ public class ClientHandler implements Runnable {
                             //local client is sending echo response
                             if ((packet[29] & 0xff) == 123) {
                                 //local client is sending echo response to external client
-                                //translate ip address
-                                System.out.println(destIP + ":" + destPort);
+                                //translate ip address;
                                 clients.get(destIP + ":" + destPort).outStream.writeObject(localToGlobal(packet, sourceIP, sourcePort, 25, 35));
                             } else {
                                 //local client is sending to local client
@@ -197,12 +202,13 @@ public class ClientHandler implements Runnable {
                     }
 
                 } else if ((packet[24] & 0xff) == 6 || (packet[24] & 0xff) == 17) {
-                    System.out.println((packet[24] & 0xff));
                     if ((packet[34] & 0xff) < 10) {
                         sourcePort = (packet[33] & 0xff) + "0" + (packet[34] & 0xff);
                     } else {
                         sourcePort = (packet[33] & 0xff) + "" + (packet[34] & 0xff);
+
                     }
+                    Port = new byte[]{packet[33], packet[34]};
                     if ((packet[36] & 0xff) < 10) {
                         int portNum = ((packet[35] & 0xff) * 100) + (packet[36] & 0xff);
                         destPort = "" + portNum;
@@ -211,9 +217,9 @@ public class ClientHandler implements Runnable {
                     }
                     //TCP/UDP
                     if ((packet[24] & 0xff) == 6) {
-                        System.out.println("[Thread: " + IPString + "]> Sending TCP packet from " + sourceIP + " to " + destIP);
+                        System.out.println("[Thread: " + IPString + "]> Sending TCP packet from " + sourceIP + ":" + sourcePort + " to " + destIP + ":" + destPort);
                     } else if ((packet[24] & 0xff) == 17) {
-                        System.out.println("[Thread: " + IPString + "]> Sending UDP packet from " + sourceIP + " to " + destIP);
+                        System.out.println("[Thread: " + IPString + "]> Sending UDP packet from " + sourceIP + ":" + sourcePort + " to " + destIP + ":" + destPort);
                     }
                     if ((packet[25] & 0xff) == 10) {
                         //local is sending TCP/UDP packet
@@ -227,9 +233,9 @@ public class ClientHandler implements Runnable {
                         } else {
                             //local is sending to external client
                             //translate local ip to global ip
-                            //set up catch for if client doesn't exist
+
                             try {
-                                clients.get(destIP + ":" + destPort).outStream.writeObject(localToGlobal(packet, sourceIP, sourcePort, 26, 34));
+                                clients.get(destIP + ":" + destPort).outStream.writeObject(localToGlobal(packet, sourceIP, sourcePort, 25, 33));
                             } catch (NullPointerException npe) {
                                 // Send ICMP back with a no route found error
                                 System.out.println("[Thread: " + IPString + "]> Client " + sourceIP + ":" + sourcePort + " is attempting use unused route " + destIP + ":" + destPort);
@@ -238,18 +244,18 @@ public class ClientHandler implements Runnable {
                         }
                     } else {
                         //external
-                        if ((packet[25] & 0xff) == 127) {
+                        if ((packet[29] & 0xff) == 127) {
                             //external is sending TCP to local ip
                             //translate global ip to local ip
                             try {
-                                clients.get(globalIPTToLocalIP(destIP, destPort)).outStream.writeObject(globalToLocal(packet, destIP, destPort, 30, 36));
+
+                                clients.get(globalIPTToLocalIP(destIP, destPort)).outStream.writeObject(globalToLocal(packet, destIP, destPort, 29, 35));
                             } catch (NullPointerException npe) {
                                 System.out.println("[Thread: " + IPString + "]> Client " + sourceIP + ":" + sourcePort + " is attempting use unused route " + destIP + ":" + destPort);
                                 clients.get(sourceIP + ":" + sourcePort).outStream.writeObject(genICMP("127.0.0.1:9090", NATMAC, 3, 1, null, 3, destIP + ":" + destPort));
                             }
                         } else {
                             //drop packet
-                            System.out.println(sourceIP + ":" + sourcePort);
                             clients.get(sourceIP + ":" + sourcePort).outStream.writeObject(genICMP("127.0.0.1:9090", NATMAC, 3, 1, null, 5, destIP + ":" + destPort));
                         }
                     }
@@ -271,7 +277,6 @@ public class ClientHandler implements Runnable {
     }
 
     public String globalIPTToLocalIP(String destIP, String destPort) {
-
         String localAddr = "";
         for (String key : NATTable.keySet()) {
             if ((destIP + ":" + destPort).equals(NATTable.get(key))) {
@@ -285,6 +290,7 @@ public class ClientHandler implements Runnable {
     public byte[] localToGlobal(byte[] packet, String sourceIP, String sourcePort, int ipPos, int portPos) {
 
         String globalAddr = NATTable.get(sourceIP + ":" + sourcePort);
+        System.out.println(globalAddr);
         if (!globalAddr.equals("")) {
 
             String[] senderInfo = globalAddr.split(":");
@@ -300,7 +306,6 @@ public class ClientHandler implements Runnable {
         } else {
             //Packet drop
         }
-
         return packet;
     }
 
@@ -329,7 +334,6 @@ public class ClientHandler implements Runnable {
         } else {
             //Packet drop
         }
-
         return packet;
     }
 
@@ -380,7 +384,6 @@ public class ClientHandler implements Runnable {
     }
 
     public byte[] genPort() {
-        Random rand = new Random();
         byte[] port = new byte[2];
         port[0] = (byte) Math.floor(Math.random() * (99 - 10 + 1) + 10);
         port[1] = (byte) Math.floor(Math.random() * (99 - 10 + 1) + 10);

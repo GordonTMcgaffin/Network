@@ -30,6 +30,7 @@ public class NAT {
         try {
             System.out.println("[NAT]> Starting NAT-box. . .");
             listener = new ServerSocket(port);
+
         } catch (IOException e) {
             System.out.println("[NAT]> Socket setup error");
             System.exit(0);
@@ -55,15 +56,6 @@ public class NAT {
 
     }
 
-
-    public static String IPtoString(int[] ip) {
-        String IPString = "" + ip[0];
-        for (int i = 1; i < ip.length; i++) {
-            IPString = IPString + "." + ip[i];
-        }
-        return IPString;
-    }
-
     public static byte[] genMAC() {
         Random rand = new Random();
         byte[] MAC = new byte[6];
@@ -72,14 +64,6 @@ public class NAT {
         System.out.println();
         return MAC;
     }
-
-    public static String genPort() {
-        Random random = new Random();
-        String port = random.nextInt(99) + "" + random.nextInt(99);
-        if (port.equals("9090")) port = genPort();
-        return port;
-    }
-
 }
 
 /*
@@ -158,25 +142,4 @@ public class NAT {
 
       0
 
-    DHCP
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |     op(1)(0)  |   htype(1)(0) |     6 bytes   |   hops (1)(0) |
-   +---------------+---------------+---------------+---------------+
-   |                            xid (4)(0)                         |
-   +-------------------------------+-------------------------------+
-   |           secs (2)(0)         |           flags (2)(0)        |
-   +-------------------------------+-------------------------------+
-   |                        Client IP address                      |
-   +---------------------------------------------------------------+
-   |                   your (client) IP address                    |
-   +---------------------------------------------------------------+
-   |         IP address of next server to use in bootstrap (0)     |
-   +---------------------------------------------------------------+
-   |                   Relay agent IP address                      |
-   +---------------------------------------------------------------+
-   |                                                               |
-   |                  Client hardware address (MAC)                |
-   |                                                               |
-   |                                                               |
-   +---------------------------------------------------------------+
- */
+*/
