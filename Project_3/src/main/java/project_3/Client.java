@@ -18,26 +18,22 @@ public class Client {
     private static String IPString;
     private static String MACString;
     private static byte[] NATMAC;
+    private static String host;
 
+    /**
+     * Sets up connection to NAT, including sending DHCP packets to request an IP address to communicate with the NAT.
+     * Sets up two threads, one for receiving incoming packets and another for sending packets.
+     *
+     * @param args
+     */
     public static void main(String args[]) {
-        String host = args[0];
+        host = args[0];
         int port = Integer.parseInt(args[1]);
         int location = Integer.parseInt(args[2]); // location = 0 means that the client is a local connection. Location = 1 means that the client is external.
 
         MAC = genMAC();
 
         BufferedReader inputReader = new BufferedReader(new InputStreamReader(System.in));
-        String protocol = "";
-        while (!(protocol.equals("TCP") || protocol.equals("UDP"))) {
-            System.out.print("[NAT] Please select protocol (TCP/UDP)> ");
-            try {
-                protocol = inputReader.readLine().toUpperCase().trim();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-            if (!(protocol.equals("TCP") || protocol.equals("UDP")))
-                System.out.println("[NAT]> Please enter a valid protocol.");
-        }
 
         System.out.println("[NAT]> Connecting to NAT. . . ");
 
@@ -47,9 +43,24 @@ public class Client {
             inStream = new ObjectInputStream(serverSocket.getInputStream());
             outStream.writeObject(location);
 
-            IP = (int[]) inStream.readObject();
-            NATMAC = (byte[]) inStream.readObject();
-            Port = (byte[]) inStream.readObject();
+            IP = new int[4];
+            NATMAC = new byte[6];
+            Port = genPort();
+
+            outStream.writeObject(genDHCP());
+            byte[] DHCP = (byte[]) inStream.readObject();
+
+            IP[0] = (DHCP[21] & 0xff);
+            IP[1] = (DHCP[22] & 0xff);
+            IP[2] = (DHCP[23] & 0xff);
+            IP[3] = (DHCP[24] & 0xff);
+
+            NATMAC[0] = DHCP[29];
+            NATMAC[1] = DHCP[30];
+            NATMAC[2] = DHCP[31];
+            NATMAC[3] = DHCP[32];
+            NATMAC[4] = DHCP[33];
+            NATMAC[5] = DHCP[34];
 
             PortString = (Port[0] & 0xff) + "" + (Port[1] & 0xff);
             IPString = IPtoString(IP);
@@ -71,6 +82,10 @@ public class Client {
             System.exit(0);
         }
 
+        /**
+         * Thread used for receiving and processing packets.
+         * The thread displays relevant information about the packets to the client
+         */
         receiveThread = new Thread() {
             @Override
             public void run() {
@@ -81,33 +96,29 @@ public class Client {
                         String sourceIP = (packet[25] & 0xff) + "." + (packet[26] & 0xff) + "." + (packet[27] & 0xff) + "." + (packet[28] & 0xff);
                         String sourcePort = "";
 
-//                        byte[] sourceIPBytes = {packet[17], packet[18], packet[19], packet[20]};
-//                        String destIP = (packet[21] & 0xff) + "." + (packet[22] & 0xff) + "." + (packet[23] & 0xff) + "." + (packet[24] & 0xff);
-//                        byte[] destIPBytes = {packet[21], packet[22], packet[23], packet[24]};
-                        System.out.println((packet[24] & 0xff));
                         if ((packet[24] & 0xff) == 1) {
+
                             if ((packet[36] & 0xff) < 10) {
                                 sourcePort = (packet[35] & 0xff) + "0" + (packet[36] & 0xff);
                             } else {
                                 sourcePort = (packet[35] & 0xff) + "" + (packet[36] & 0xff);
-                            }//might be able to remove
+                            }
                             //ICMP packet
-                            System.out.println((packet[33] & 0xff));
                             if ((packet[33] & 0xff) == 16) {
                                 //ICMP response
                                 messageBytes = new byte[packet.length - 36];
-                                System.arraycopy(packet, 27, messageBytes, 0, packet.length - 36);
+                                System.arraycopy(packet, 36, messageBytes, 0, packet.length - 36);
                                 String message = new String(messageBytes);
-                                System.out.println();
+
                                 if (location == 0)
                                     System.out.println("[" + IPString + ":" + PortString + "]> Available Clients");
                                 if (location == 1)
-                                    System.out.println("[" + IPString + ":" + PortString + "]> Available ports");
-                                System.out.println(message.split(":", 2)[1]);
-                                System.out.print("[" + IPString + "]> ");
+                                    System.out.println("[" + IPString + ":" + PortString + "]> Available routes");
+
+                                if (message.split(":", 2).length > 1) System.out.println(message.split(":", 2)[1]);
+                                System.out.print("[" + IPString + ":" + PortString + "]> ");
                             } else if ((packet[33] & 0xff) == 8) {
                                 //ICMP echo
-                                System.out.println("Echo");
                                 packet = genICMP(sourceIP + ":" + sourcePort, 0, 1);
                                 outStream.writeObject(packet);
                             } else if ((packet[33] & 0xff) == 0) {
@@ -116,12 +127,12 @@ public class Client {
                             } else if ((packet[33] & 0xff) == 3) {
                                 //ICMP error message
                                 if ((packet[34] & 0xff) == 5)
-                                    System.out.println(" Address entered is unreachable");
+                                    System.out.println("Address entered is unreachable");
                                 if ((packet[34] & 0xff) == 3)
-                                    System.out.println(" Port " + sourcePort + " is unreachable");
+                                    System.out.println("Address entered is unreachable");
                                 System.out.print("[" + IPString + ":" + PortString + "]> ");
                             }
-                        } else if ((packet[24] & 0xff) == 6) {
+                        } else if ((packet[24] & 0xff) == 6 || (packet[24] & 0xff) == 17) {
                             if ((packet[34] & 0xff) < 10) {
                                 sourcePort = (packet[33] & 0xff) + "0" + (packet[34] & 0xff);
                             } else {
@@ -134,6 +145,7 @@ public class Client {
                             System.out.println();
                             System.out.println("[" + sourceIP + ":" + sourcePort + "]> " + message);
                             System.out.print("[" + IPString + ":" + PortString + "]> ");
+
                         }
 
                     } catch (IOException | ClassNotFoundException e) {
@@ -147,6 +159,10 @@ public class Client {
         };
         receiveThread.start();
 
+        /**
+         *
+         * Thread used for client input and packet sending
+         */
         sendThread = new Thread() {
             @Override
             public void run() {
@@ -173,11 +189,23 @@ public class Client {
                                 packet = genICMP(inputs, 8, 1);
                                 outStream.writeObject(packet);
                             } else if (input.equals("2")) {
+                                String protocol = "";
+                                while (!(protocol.equals("TCP") || protocol.equals("UDP"))) {
+                                    System.out.print("[NAT] Please select protocol (TCP/UDP)> ");
+                                    try {
+                                        protocol = inputReader.readLine().toUpperCase().trim();
+                                    } catch (IOException e) {
+                                        throw new RuntimeException(e);
+                                    }
+                                    if (!(protocol.equals("TCP") || protocol.equals("UDP")))
+                                        System.out.println("[NAT]> Please enter a valid protocol.");
+                                }
                                 //Send message using selected protocol
                                 System.out.println("[" + IPString + ":" + PortString + "]> Please enter <IP Address:Port> <Message>");
                                 System.out.print("[" + IPString + ":" + PortString + "]> ");
                                 String[] inputs = inputReader.readLine().split(" ", 2);
-                                packet = genMSGPacket(inputs, 6);
+                                if (protocol.equals("TCP")) packet = genMSGPacket(inputs, 6);
+                                if (protocol.equals("UDP")) packet = genMSGPacket(inputs, 17);
                                 outStream.writeObject(packet);
                                 System.out.print("[" + IPString + ":" + PortString + "]> ");
                             } else {
@@ -185,7 +213,6 @@ public class Client {
                                 System.out.print("[" + IPString + ":" + PortString + "]> ");
                             }
                         } else {
-                            System.out.println();
                             System.out.print("[" + IPString + ":" + PortString + "]> ");
                         }
                     } catch (IOException e) {
@@ -197,6 +224,11 @@ public class Client {
         sendThread.start();
     }
 
+    /**
+     * Generates a random MAC address
+     *
+     * @return a byte array containing the generated MAC address
+     */
     public static byte[] genMAC() {
         Random rand = new Random();
         byte[] MAC = new byte[6];
@@ -204,6 +236,12 @@ public class Client {
         return MAC;
     }
 
+    /**
+     * Translates the MAC address provided to a string
+     *
+     * @param MAC the MAC address to be translated
+     * @return a string version of the MAC address
+     */
     public static String MACtoString(byte[] MAC) {
         String MACString = String.format("%02x", MAC[1]);
         for (int i = 1; i < MAC.length; i++) {
@@ -212,6 +250,12 @@ public class Client {
         return MACString;
     }
 
+    /**
+     * Translates the IP address provided to a string
+     *
+     * @param ip the IP address to be translated
+     * @return a string version of the IP address
+     */
     public static String IPtoString(int[] ip) {
         String IPString = "" + ip[0];
         for (int i = 1; i < ip.length; i++) {
@@ -220,7 +264,28 @@ public class Client {
         return IPString;
     }
 
-    public static byte[] genICMP(String data, int type, int protocol) throws IOException {
+    /**
+     * Generates the port that the client is using to listen to the NAT
+     *
+     * @return a byte array containing the port
+     */
+    public static byte[] genPort() {
+        byte[] port = new byte[2];
+        port[0] = (byte) Math.floor(Math.random() * (99 - 10 + 1) + 10);
+        port[1] = (byte) Math.floor(Math.random() * (99 - 10 + 1) + 10);
+        return port;
+    }
+
+    /**
+     * Generates an ICMP packet with the required data provided
+     *
+     * @param receiverAddr the address of the receiver
+     * @param type         the ICMP type
+     * @param protocol     the IP protocol
+     * @return tha ICMP packet generated
+     * @throws IOException
+     */
+    public static byte[] genICMP(String receiverAddr, int type, int protocol) throws IOException {
 
         byte[] preamble = new byte[7];
         for (int i = 0; i < 7; i++) {
@@ -228,7 +293,7 @@ public class Client {
         }
 
         ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
-        String[] destInfo = data.split(":");
+        String[] destInfo = receiverAddr.split(":");
         String[] destIPString = destInfo[0].split("\\.", 4);
 
         //Ethernet
@@ -263,7 +328,15 @@ public class Client {
         return byteStream.toByteArray();
     }
 
-    public static byte[] genMSGPacket(String[] data, int protocol) throws IOException {
+    /**
+     * Generates a TCP or UDP packet depending on which protocol is selected
+     *
+     * @param messageInfo contains the message being sent along with the receiver's address
+     * @param protocol    the protocol used to send the data
+     * @return a TCP or UDP packet
+     * @throws IOException
+     */
+    public static byte[] genMSGPacket(String[] messageInfo, int protocol) throws IOException {
 
         byte[] preamble = new byte[7];
         for (int i = 0; i < 7; i++) {
@@ -271,9 +344,9 @@ public class Client {
         }
 
         ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
-        byte[] message = data[1].getBytes();
+        byte[] message = messageInfo[1].getBytes();
 
-        String[] destInfo = data[0].split(":");
+        String[] destInfo = messageInfo[0].split(":");
         String[] destIPString = destInfo[0].split("\\.", 4);
 
         int messageSize = message.length;
@@ -313,60 +386,41 @@ public class Client {
         return byteStream.toByteArray();
     }
 
-
-    /*
-    Headers to be included for each packet that is sent.
-
-    Ethernet header
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-           |                          MAC Destination                      |
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-           | MAC source |    Length    |                Data               |
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-
-
-
-    IP header
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-           |      Start of data           |             Total Length       |
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-           |  Time to Live   |              Protocol                       |
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-           |                       Source Address                          |
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-           |                    Destination Address                        |
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-
-            protocol
-                1 - ICMP
-                6 - TCP
-                17 - UDP
-
-            padding is to ensure the header ends on a 32 bit boundary
-
-    TCP header
-                       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-                       |          Source Port          |       Destination Port        |
-                       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-                       |      Data                  |                                  |
-                       |      Offset                |                -                 |
-                       |    Where the data begins   |                                  |
-                       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-                       |                             data                              |
-                       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-
-
-
-    UDP header
-                     +--------+--------+--------+--------+
-                     |     Source      |   Destination   |
-                     |      Port       |      Port       |
-                     +--------+--------+--------+--------+
-                     |  Header + data  |                 |
-                     |     Length      |        -        |
-                     +--------+--------+--------+--------+
-                     |               data                |
-                     +--------+--------+--------+--------+
+    /**
+     * Generates the request DHCP packet
+     *
+     * @return the DHCP packet
+     * @throws IOException
      */
+    public static byte[] genDHCP() throws IOException {
 
+        String[] serverIP = host.split("\\.");
+        byte[] preamble = new byte[7];
+        for (int i = 0; i < 7; i++) {
+            preamble[i] = (byte) (i % 2);
+        }
+
+        ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
+
+        //Ethernet
+        byteStream.write(preamble);// Preamble: 7 bytes : 0
+        byteStream.write((byte) 171); //stf 1 byte : 7
+        byteStream.write(NATMAC); // MAC destination : 6 bytes : 8
+        byteStream.write(MAC); // MAC source : 6 bytes: 14
+        byteStream.write((byte) 25);// Length : 1 byte : 20
+
+        //DHCP
+        byteStream.write((byte) 1);
+        byteStream.write((byte) 1);
+        byteStream.write((byte) 1);
+        byteStream.write((byte) 1);//Source IP : 4 bytes; 21
+        byteStream.write((byte) Integer.parseInt(serverIP[0]));
+        byteStream.write((byte) Integer.parseInt(serverIP[1]));
+        byteStream.write((byte) Integer.parseInt(serverIP[2]));
+        byteStream.write((byte) Integer.parseInt(serverIP[3]));//Server IP : 4 bytes; 25
+        byteStream.write(MAC);// Client MAC : 6 bytes; 29
+        byteStream.write(Port);//Source port : 2 byte : 35:32
+
+        return byteStream.toByteArray();
+    }
 }
