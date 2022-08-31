@@ -20,6 +20,12 @@ public class Client {
     private static byte[] NATMAC;
     private static String host;
 
+    /**
+     * Sets up connection to NAT, including sending DHCP packets to request an IP address to communicate with the NAT.
+     * Sets up two threads, one for receiving incoming packets and another for sending packets.
+     *
+     * @param args
+     */
     public static void main(String args[]) {
         host = args[0];
         int port = Integer.parseInt(args[1]);
@@ -71,14 +77,15 @@ public class Client {
             System.out.println("===================================");
             System.out.println();
 
-        } catch (IOException e) {
-            System.out.println("[NAT]> Connection to NAT failed ");
-            System.exit(0);
-        } catch (ClassNotFoundException e) {
+        } catch (IOException | ClassNotFoundException e) {
             System.out.println("[NAT]> Connection to NAT failed ");
             System.exit(0);
         }
 
+        /**
+         * Thread used for receiving and processing packets.
+         * The thread displays relevant information about the packets to the client
+         */
         receiveThread = new Thread() {
             @Override
             public void run() {
@@ -89,15 +96,13 @@ public class Client {
                         String sourceIP = (packet[25] & 0xff) + "." + (packet[26] & 0xff) + "." + (packet[27] & 0xff) + "." + (packet[28] & 0xff);
                         String sourcePort = "";
 
-//                        byte[] sourceIPBytes = {packet[17], packet[18], packet[19], packet[20]};
-//                        String destIP = (packet[21] & 0xff) + "." + (packet[22] & 0xff) + "." + (packet[23] & 0xff) + "." + (packet[24] & 0xff);
-//                        byte[] destIPBytes = {packet[21], packet[22], packet[23], packet[24]};
                         if ((packet[24] & 0xff) == 1) {
+
                             if ((packet[36] & 0xff) < 10) {
                                 sourcePort = (packet[35] & 0xff) + "0" + (packet[36] & 0xff);
                             } else {
                                 sourcePort = (packet[35] & 0xff) + "" + (packet[36] & 0xff);
-                            }//might be able to remove
+                            }
                             //ICMP packet
                             if ((packet[33] & 0xff) == 16) {
                                 //ICMP response
@@ -133,7 +138,6 @@ public class Client {
                             } else {
                                 sourcePort = (packet[33] & 0xff) + "" + (packet[34] & 0xff);
                             }
-
                             //TCP/UDP message
                             messageBytes = new byte[packet.length - 38];
                             System.arraycopy(packet, 38, messageBytes, 0, packet.length - 38);
@@ -141,7 +145,7 @@ public class Client {
                             System.out.println();
                             System.out.println("[" + sourceIP + ":" + sourcePort + "]> " + message);
                             System.out.print("[" + IPString + ":" + PortString + "]> ");
-                            //outStream.writeObject((sourceIP + ":" + sourcePort).getBytes());
+
                         }
 
                     } catch (IOException | ClassNotFoundException e) {
@@ -155,6 +159,10 @@ public class Client {
         };
         receiveThread.start();
 
+        /**
+         *
+         * Thread used for client input and packet sending
+         */
         sendThread = new Thread() {
             @Override
             public void run() {
@@ -205,7 +213,6 @@ public class Client {
                                 System.out.print("[" + IPString + ":" + PortString + "]> ");
                             }
                         } else {
-
                             System.out.print("[" + IPString + ":" + PortString + "]> ");
                         }
                     } catch (IOException e) {
@@ -217,6 +224,11 @@ public class Client {
         sendThread.start();
     }
 
+    /**
+     * Generates a random MAC address
+     *
+     * @return a byte array containing the generated MAC address
+     */
     public static byte[] genMAC() {
         Random rand = new Random();
         byte[] MAC = new byte[6];
@@ -224,6 +236,12 @@ public class Client {
         return MAC;
     }
 
+    /**
+     * Translates the MAC address provided to a string
+     *
+     * @param MAC the MAC address to be translated
+     * @return a string version of the MAC address
+     */
     public static String MACtoString(byte[] MAC) {
         String MACString = String.format("%02x", MAC[1]);
         for (int i = 1; i < MAC.length; i++) {
@@ -232,6 +250,12 @@ public class Client {
         return MACString;
     }
 
+    /**
+     * Translates the IP address provided to a string
+     *
+     * @param ip the IP address to be translated
+     * @return a string version of the IP address
+     */
     public static String IPtoString(int[] ip) {
         String IPString = "" + ip[0];
         for (int i = 1; i < ip.length; i++) {
@@ -240,6 +264,11 @@ public class Client {
         return IPString;
     }
 
+    /**
+     * Generates the port that the client is using to listen to the NAT
+     *
+     * @return a byte array containing the port
+     */
     public static byte[] genPort() {
         byte[] port = new byte[2];
         port[0] = (byte) Math.floor(Math.random() * (99 - 10 + 1) + 10);
@@ -247,7 +276,16 @@ public class Client {
         return port;
     }
 
-    public static byte[] genICMP(String data, int type, int protocol) throws IOException {
+    /**
+     * Generates an ICMP packet with the required data provided
+     *
+     * @param receiverAddr the address of the receiver
+     * @param type         the ICMP type
+     * @param protocol     the IP protocol
+     * @return tha ICMP packet generated
+     * @throws IOException
+     */
+    public static byte[] genICMP(String receiverAddr, int type, int protocol) throws IOException {
 
         byte[] preamble = new byte[7];
         for (int i = 0; i < 7; i++) {
@@ -255,7 +293,7 @@ public class Client {
         }
 
         ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
-        String[] destInfo = data.split(":");
+        String[] destInfo = receiverAddr.split(":");
         String[] destIPString = destInfo[0].split("\\.", 4);
 
         //Ethernet
@@ -290,7 +328,15 @@ public class Client {
         return byteStream.toByteArray();
     }
 
-    public static byte[] genMSGPacket(String[] data, int protocol) throws IOException {
+    /**
+     * Generates a TCP or UDP packet depending on which protocol is selected
+     *
+     * @param messageInfo contains the message being sent along with the receiver's address
+     * @param protocol    the protocol used to send the data
+     * @return a TCP or UDP packet
+     * @throws IOException
+     */
+    public static byte[] genMSGPacket(String[] messageInfo, int protocol) throws IOException {
 
         byte[] preamble = new byte[7];
         for (int i = 0; i < 7; i++) {
@@ -298,9 +344,9 @@ public class Client {
         }
 
         ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
-        byte[] message = data[1].getBytes();
+        byte[] message = messageInfo[1].getBytes();
 
-        String[] destInfo = data[0].split(":");
+        String[] destInfo = messageInfo[0].split(":");
         String[] destIPString = destInfo[0].split("\\.", 4);
 
         int messageSize = message.length;
@@ -340,6 +386,12 @@ public class Client {
         return byteStream.toByteArray();
     }
 
+    /**
+     * Generates the request DHCP packet
+     *
+     * @return the DHCP packet
+     * @throws IOException
+     */
     public static byte[] genDHCP() throws IOException {
 
         String[] serverIP = host.split("\\.");
@@ -371,76 +423,4 @@ public class Client {
 
         return byteStream.toByteArray();
     }
-
-
-    /*
-    Headers to be included for each packet that is sent.
-
-    Ethernet header
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-           |                          MAC Destination                      |
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-           | MAC source |    Length    |                Data               |
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-
-
-
-    IP header
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-           |      Start of data           |             Total Length       |
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-           |  Time to Live   |              Protocol                       |
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-           |                       Source Address                          |
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-           |                    Destination Address                        |
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-
-            protocol
-                1 - ICMP
-                6 - TCP
-                17 - UDP
-
-            padding is to ensure the header ends on a 32 bit boundary
-
-    TCP header
-                       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-                       |          Source Port          |       Destination Port        |
-                       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-                       |      Data                  |                                  |
-                       |      Offset                |                -                 |
-                       |    Where the data begins   |                                  |
-                       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-                       |                             data                              |
-                       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-
-
-
-    UDP header
-                     +--------+--------+--------+--------+
-                     |     Source      |   Destination   |
-                     |      Port       |      Port       |
-                     +--------+--------+--------+--------+
-                     |  Header + data  |                 |
-                     |     Length      |        -        |
-                     +--------+--------+--------+--------+
-                     |               data                |
-                     +--------+--------+--------+--------+
-
-     DHCP
-
-                   +-------------------------------+-------------------------------+
-                   |                       Client ip addr                          |
-                   +---------------------------------------------------------------+
-                   |                      server ip address                        |
-                   +---------------------------------------------------------------+
-                   |                                                               |
-                   |                            MAC                                |
-                   |                                                               |
-                   |                                                               |
-                   +---------------------------------------------------------------+
-                   |                          Client port                          |
-                   +---------------------------------------------------------------+
-     */
-
 }

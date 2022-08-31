@@ -17,6 +17,11 @@ public class NAT {
     private static ExecutorService threadPool = Executors.newFixedThreadPool(10);
     public static byte[] MAC;
 
+    /**
+     * Main function used to set up the NAT server
+     *
+     * @param args contains values for port and thread/client amount
+     */
     public static void main(String[] args) {
 
         int port = Integer.parseInt(args[0]);
@@ -56,90 +61,15 @@ public class NAT {
 
     }
 
+    /**
+     * Generates a random MAC address for the NAT router
+     *
+     * @return The NAT's MAC address
+     */
     public static byte[] genMAC() {
         Random rand = new Random();
         byte[] MAC = new byte[6];
         rand.nextBytes(MAC);
-
-        System.out.println();
         return MAC;
     }
 }
-
-/*
-
-    Ethernet header
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-           |                          MAC Destination                      |
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-           | MAC source |    Length    |                Data               |
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-
-
-
-    IP header
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-           |      Start of data           |             Total Length       |
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-           |  Time to Live   |              Protocol                       |
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-           |                       Source Address                          |
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-           |                    Destination Address                        |
-           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-
-            protocol
-                1 - ICMP
-                6 - TCP
-                17 - UDP
-
-
-
-    ICMP
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |     Type      |                    Code                       |
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |                             Data                              |
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-
-
-
-    Type
-
-        3
-
-   Code
-
-      0 = net unreachable;
-
-      1 = host unreachable;
-
-      2 = protocol unreachable;
-
-      3 = port unreachable;
-
-      4 = fragmentation needed and DF set;
-
-      5 = source route failed.
-
- Type
-
-      8 for echo message;
-
-      0 for echo reply message.
-
-   Code
-
-      0
-
-   Type
-
-      15 for information request message;
-
-      16 for information reply message.
-
-   Code
-
-      0
-
-*/
