@@ -1,0 +1,137 @@
+% File:    report.tex
+% Brief:   report for CS 354 Project 2
+% Author:  G. Mcgaffin (23565608@sun.ac.za)
+% Author:  J. P. Visser (21553416@sun.ac.za)
+% Date:    2022-09-02
+
+\documentclass[10pt, a4paper]{article}
+
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{graphicx}
+%\graphicspath{ {./images/exp1/}{./images/exp2/}{./images/exp3/} }
+
+\title{CS 354 Project 3: Network Address Translation}
+\author{Group 41: \vspace{0.5em} \\
+        G. Mcgaffin (23565608@sun.ac.za) \vspace{0.3em} \\
+        J.\ P.\ Visser (21553416@sun.ac.za)}
+\date{\vspace{1em} 2 September 2022}
+
+\begin{document}
+
+% --- Title ------------------------------------------------------------------ %
+
+\maketitle
+\newpage
+
+% --- Table of Contents ------------------------------------------------------ %
+
+\tableofcontents
+\newpage
+
+% --- Introduction ----------------------------------------------------------- %
+
+\section{Introduction}
+\label{sec:intro}
+
+For this project we were tasked with implementing a simulated router with
+minimal NAT functionality, as well as a simple client.
+
+The router processes paquets received from clients, who are either marked as
+internal (hosts in the local network) or external (hosts belonging to an
+external network).
+
+Clients send simple paquets to one another, and the router has to process these
+paquets in an appropriate manner, depending on the following cases:
+\begin{itemize}
+  \item \textbf{Internal $\rightarrow$ Internal}: The paquet is forwarded
+  without changing its data
+  \item \textbf{Internal $\rightarrow$ External}: The paquet header is modified
+  and an entry is added to the NAT table, or refreshed if it already exists,
+  that binds the source IP/port to the destination address.
+  \item \textbf{External $\rightarrow$ Internal}: The paquet is routed according
+  to the entry in the NAT table. If there is no corresponding entry in the table
+  for the source, the paquet is dropped and an error paquet is returned (unless
+  something like port forwarding has been implemented).
+  \item \textbf{External $\rightarrow$ External}: Paquets are dropped, as they
+  should be routed by external networks.
+\end{itemize}
+
+Additional features we needed to implement were:
+
+\begin{itemize}
+  \item \textbf{NAT table}. The address translation table should refresh
+    dynamically.
+  \item \textbf{DHCP}. Internal clients should automatically request and be
+    assigned an address by the NAT server.
+\end{itemize}
+
+\subsection{Overview}
+\label{subsec:oview}
+
+In this document we will provide a complete view of our implementation, by
+discussing its design (\S\ref{sec:design}), giving a breakdown of the files into
+which it is organized (\S\ref{sec:fdesc}), and providing a high level
+description, providing more details where necessary, of the flow of execution of
+the two programs which it comprises (\S\ref{sec:pdesc}).
+
+We are confident that our implementation meets all of the requirements. However,
+we did not implement any features beyond those listed in the requirements
+either. Therefore, we do not include sections dedicated to unimplemented or
+additional features, as it would be superfluous.
+
+Furthermore, we will discuss issues we encountered during the development
+process (\S\ref{sec:issues}), experiments we have conducted (\S\ref{sec:exp}),
+compilation and execution of the router and client (\S\ref{sec:comp} and
+\S\ref{sec:exec}), as well as the libraries we made use of (\S\ref{sec:libs}).
+
+% --- Additional Features ---------------------------------------------------- %
+
+% --- File Descriptions ------------------------------------------------------ %
+
+\section{File Descriptions}
+\label{sec:fdesc}
+
+% --- Program Description ---------------------------------------------------- %
+
+\section{Program Description}
+\label{sec:pdesc}
+
+% --- Experiments ------------------------------------------------------------ %
+
+\section{Experiments}
+\label{sec:exp}
+
+
+% --- Issues Encountered ----------------------------------------------------- %
+
+\section{Issues Encountered}
+\label{sec:issues}
+
+
+% --- Design ----------------------------------------------------------------- %
+
+\section{Design}
+\label{sec:design}
+
+% --- Compilation ------------------------------------------------------------ %
+
+\section{Compilation}
+\label{sec:comp}
+
+It is assumed that the project will be run on Linux from a Bash shell.
+
+\subsection{Dependencies}
+\label{subsec:deps}
+
+% --- Execution -------------------------------------------------------------- %
+
+\section{Execution}
+\label{sec:exec}
+
+% --- Libraries -------------------------------------------------------------- %
+
+\section{Libraries}
+\label{sec:libs}
+
+\end{document}
