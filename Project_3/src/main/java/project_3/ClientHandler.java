@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
+import java.time.LocalDateTime;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ClientHandler implements Runnable {
@@ -22,6 +23,10 @@ public class ClientHandler implements Runnable {
     private ConcurrentHashMap<String, ClientHandler> clients;
     private boolean[] portPool;
 
+    private int timeLastUsed;
+
+    public int timeOut;
+
     /**
      * Client handler constructor. Sets up all input and output streams for the provided socket.
      * The constructor Generates an IP address for each client and communicates it to the client using DHCP
@@ -37,7 +42,7 @@ public class ClientHandler implements Runnable {
                          ConcurrentHashMap<String, String> NAT_TABLE,
                          ConcurrentHashMap<String, ClientHandler> clientList,
                          byte[] NMAC,
-                         int NPort, boolean[] portPool) {
+                         int NPort, boolean[] portPool, int timeOut) {
 
         this.client = clientSocket;
         this.NATTable = NAT_TABLE;
@@ -46,7 +51,8 @@ public class ClientHandler implements Runnable {
         this.NATPort = NPort;
         this.Port = new byte[2];
         this.portPool = portPool;
-
+        this.timeOut = timeOut;
+        setTimer();
 
         int location;
 
@@ -103,6 +109,51 @@ public class ClientHandler implements Runnable {
         System.out.println("[Thread: " + IPString + ":" + PortString + "]> Client connected");
     }
 
+    public Thread checkTime = new Thread() {
+        @Override
+        public void run() {
+            try {
+                while (true) {
+                    sleep(timeOut);
+                    LocalDateTime now = LocalDateTime.now();
+
+                    if ((((now.getHour() * 60 * 60) + (now.getMinute() * 60) + now.getSecond()) - timeLastUsed) >= timeOut / 1000) {
+                        NATTable.remove(IPString + ":" + PortString);
+                        System.out.println("=============");
+                        System.out.println("NATTABLE");
+                        for (String key : NATTable.keySet()) {
+                            System.out.println(key + " | " + NATTable.get(key));
+                        }
+                        System.out.println("=============");
+                    }
+                }
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+    };
+
+    public void checkNAT() {
+        if (NATTable.get(IPString + ":" + PortString) == null) {
+
+            int p;
+            for (p = 0; p < portPool.length; p++) if (!portPool[p]) break;
+            portPool[p] = true;
+            clientPort = 9000 + p;
+
+
+            NATTable.put(IPString + ":" + PortString, "127.0.0.1" + ":" + clientPort);
+            System.out.println("=============");
+            System.out.println("NATTABLE");
+            for (String key : NATTable.keySet()) {
+                System.out.println(key + " | " + NATTable.get(key));
+            }
+            System.out.println("=============");
+        }
+    }
+
+
     /**
      * Starts when thread is executed. Continuously listens for
      * incoming packets from client, translates and routes the packets to their specified locations
@@ -110,11 +161,13 @@ public class ClientHandler implements Runnable {
     @Override
     public void run() {
         byte[] packet;
+
+        checkTime.start();
+
         while (true) {
             try {
 
                 packet = (byte[]) inStream.readObject();
-
 
                 String sourceIP = (packet[25] & 0xff) + "." + (packet[26] & 0xff) + "." + (packet[27] & 0xff) + "." + (packet[28] & 0xff);
                 String sourcePort = "";
@@ -162,6 +215,8 @@ public class ClientHandler implements Runnable {
                         System.out.println("[Thread: " + IPString + "]> Sending Echo from " + sourceIP + ":" + sourcePort + " to " + destIP + ":" + destPort);
                         if ((packet[25] & 0xff) == 10) {
                             //local client is sending an echo request
+                            setTimer();
+                            checkNAT();
                             if ((packet[29] & 0xff) == 10) {
                                 //request is being sent to internal client
                                 try {
@@ -205,6 +260,7 @@ public class ClientHandler implements Runnable {
                         System.out.println("[Thread: " + IPString + "]> Sending Echo response from " + sourceIP + ":" + sourcePort + " to " + destIP + ":" + destPort);
                         if ((packet[25] & 0xff) == 10) {
                             //local client is sending echo response
+                            setTimer();
                             if ((packet[29] & 0xff) == 123) {
                                 //local client is sending echo response to external client
                                 //translate ip address;
@@ -250,6 +306,8 @@ public class ClientHandler implements Runnable {
                     }
                     if ((packet[25] & 0xff) == 10) {
                         //local is sending TCP/UDP packet
+                        setTimer();
+                        checkNAT();
                         if ((packet[29] & 0xff) == 10) {
                             try {
                                 clients.get(destIP + ":" + destPort).outStream.writeObject(packet);
@@ -304,6 +362,12 @@ public class ClientHandler implements Runnable {
             }
         }
     }
+
+    public void setTimer() {
+        LocalDateTime newTime = LocalDateTime.now();
+        timeLastUsed = (newTime.getHour() * 60 * 60) + (newTime.getMinute() * 60) + newTime.getSecond();
+    }
+
 
     /**
      * Translates global IP address to local IP address using the NATTABLE

@@ -26,6 +26,7 @@ public class NAT {
 
         int port = Integer.parseInt(args[0]);
         int threadAmount = Integer.parseInt(args[1]);
+        int timeOut = Integer.parseInt(args[2]);
         boolean[] portPool = new boolean[threadAmount];
         Arrays.fill(portPool, false);
         MAC = genMAC();
@@ -45,7 +46,7 @@ public class NAT {
         while (true) {
             try {
                 client = listener.accept();
-                ClientHandler clientThread = new ClientHandler(client, NAT_TABLE, clients, MAC, port, portPool);
+                ClientHandler clientThread = new ClientHandler(client, NAT_TABLE, clients, MAC, port, portPool, timeOut);
                 if (clientThread.IPString.split("\\.")[0].equals("10"))
                     NAT_TABLE.put(clientThread.IPString + ":" + clientThread.PortString, "127.0.0.1" + ":" + clientThread.clientPort);
                 System.out.println("NATTABLE");
