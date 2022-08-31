@@ -109,6 +109,9 @@ public class ClientHandler implements Runnable {
         System.out.println("[Thread: " + IPString + ":" + PortString + "]> Client connected");
     }
 
+    /**
+     * Checks if NAT table entry has expired
+     */
     public Thread checkTime = new Thread() {
         @Override
         public void run() {
@@ -119,6 +122,8 @@ public class ClientHandler implements Runnable {
 
                     if ((((now.getHour() * 60 * 60) + (now.getMinute() * 60) + now.getSecond()) - timeLastUsed) >= timeOut / 1000) {
                         NATTable.remove(IPString + ":" + PortString);
+                        if (clientPort != -1)
+                            portPool[clientPort - 9000] = false;
                         System.out.println("=============");
                         System.out.println("NATTABLE");
                         for (String key : NATTable.keySet()) {
@@ -134,6 +139,9 @@ public class ClientHandler implements Runnable {
 
     };
 
+    /**
+     * Makes a NAT table entry if it does not exist
+     */
     public void checkNAT() {
         if (NATTable.get(IPString + ":" + PortString) == null) {
 
