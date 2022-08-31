@@ -204,9 +204,13 @@ public class Client {
                                 System.out.println("[" + IPString + ":" + PortString + "]> Please enter <IP Address:Port> <Message>");
                                 System.out.print("[" + IPString + ":" + PortString + "]> ");
                                 String[] inputs = inputReader.readLine().split(" ", 2);
-                                if (protocol.equals("TCP")) packet = genMSGPacket(inputs, 6);
-                                if (protocol.equals("UDP")) packet = genMSGPacket(inputs, 17);
-                                outStream.writeObject(packet);
+                                if (inputs.length > 1) {
+                                    if (protocol.equals("TCP")) packet = genMSGPacket(inputs, 6);
+                                    if (protocol.equals("UDP")) packet = genMSGPacket(inputs, 17);
+                                    outStream.writeObject(packet);
+                                } else {
+                                    System.out.println("[" + IPString + ":" + PortString + "]> Invalid message");
+                                }
                                 System.out.print("[" + IPString + ":" + PortString + "]> ");
                             } else {
                                 System.out.println("[" + IPString + ":" + PortString + "]> " + input + " is not a valid command");
