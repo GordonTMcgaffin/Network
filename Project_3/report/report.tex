@@ -255,7 +255,87 @@ with some more detailed descriptions of its operation.
 % --- Experiments ------------------------------------------------------------ %
 
 \section{Experiments}
-\label{sec:exp}
+\label{ssec:exp}
+
+
+\subsection{Duplicate IP address and Port Number}
+\label{ssec:dup}
+
+
+\subsubsection{Experiment}
+\label{sssec:dupexp}
+
+Determine what happens when the NAT-box assigns the same IP address and port
+number to two different internal clients.
+
+
+\subsubsection{Hypothesis}
+\label{sssec:duphyp}
+
+Because the NAT-box uses a hash table to associate IP addresses and port numbers
+with internal clients, it is expected that when an IP address and port number
+that are already assigned to an internal client is assigned again to new
+internal client, the new association will simply overwrite the original one. The
+NAT-box and all active clients will remain operational, but there will be no way
+for the original client to receive communications from any of the other clients,
+since there will no longer be a NAT table entry associated with it.
+
+
+\subsubsection{Test}
+\label{sssec:duptest}
+
+To test this hypothesis, introduce some small changes to the
+\texttt{ClientHandler}'s source code, so that it will not generate a new IP
+address and port for each new internal client, but will instead assign the same
+address and port to every internal client. Then recompile and run the NAT-box.
+Start three clients: two internal and one external. Then, for each client
+request the client list from the NAT-box, and inspect and compare the lists.
+Finally, try to send a message from the external client to one of the internal
+clients, and see what happens.
+
+
+\subsubsection{Findings}
+\label{sssec:dupfind}
+
+TODO
+
+
+\subsection{Too Many Clients; Too Few Threads}
+\label{ssec:toomany}
+
+
+\subsubsection{Experiment}
+\label{sssec:toomanyexp}
+
+Determine what happens when too many clients try to connect to the NAT-box. When
+the NAT-box is run, one of its command-line arguments specifies the maximum
+number of threads to use to handle clients. When the NAT-box is instructed to
+use $n$ threads, but $n + 1$ clients attempt to connect, what is the result?
+
+
+\subsubsection{Hypothesis}
+\label{sssec:toomanyhyp}
+
+It is expected that the last client to attempt to connect to the NAT-box will
+``hang" and do nothing until one of the other clients disconnects from the
+NAT-box, freeing a thread to handle the waiting client.
+
+
+\subsubsection{Test}
+\label{sssec:toomanytest}
+
+To conduct this experiment, run the NAT-box, and specify that it must use no
+more than 2 threads to handle clients. Then start up three clients. It does not
+matter which types of clients are used, but we opted to use only internal
+clients. One of the clients should be unable to establish a connection with the
+NAT-box. Then close one of the connected clients, and observe what happens with
+the aforementioned client that was unable to connect.
+
+
+\subsubsection{Findings}
+\label{sssec:toomanyfind}
+
+TODO
 
 
 % --- Significant Data Structures -------------------------------------------- %
@@ -266,8 +346,8 @@ with some more detailed descriptions of its operation.
 The only data structure of note that we used for this project is the
 \texttt{ConcurrentHashMap}. The \texttt{ConcurrentHashMap} is a thread safe
 \texttt{HashMap} implementation. It was used to implement the NAT table and the
-client list. These hash tables are accessed from multiple different threads, so
-race conditions can occur. The \texttt{ConcurrentHashMap} prevents this from
+client list. These hash tables are accessed from multiple threads, so race
+conditions can occur. The \texttt{ConcurrentHashMap} prevents this from
 happening by means of synchronization.
 
 
