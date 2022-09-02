@@ -296,14 +296,43 @@ address and port for each new internal client, but will instead assign the same
 address and port to every internal client. Then recompile and run the NAT-box.
 Start three clients: two internal and one external. Then, for each client
 request the client list from the NAT-box, and inspect and compare the lists.
-Finally, try to send a message from the external client to one of the internal
-clients, and see what happens.
+Finally, try to send a message from the external client to the internal clients
+and see what happens.
 
 
 \subsubsection{Findings}
 \label{sssec:dupfind}
 
-TODO
+Our hyphothesis was correct. The last internal client to connect to the NAT-box
+takes over the IP address and port number from the client that connected just
+before it. When sending a message to the NAT-box from the external client, only
+the last connected internal client receives it. See Figures \ref{fig:exp1-1} to
+\ref{fig:exp1-3}.
+
+\begin{figure}
+  \centering
+  \includegraphics[width=12cm]{exp1-1}
+  \caption{Message sent from the external client to the NAT-box after a
+  connection between the internal and external clients has been established.}
+  \label{fig:exp1-1}
+\end{figure}
+
+\begin{figure}
+  \centering
+  \includegraphics[width=12cm]{exp1-2}
+  \caption{The last connected internal client displaying the message received
+  from the external client.}
+  \label{fig:exp1-2}
+\end{figure}
+
+\begin{figure}
+  \centering
+  \includegraphics[width=12cm]{exp1-3}
+  \caption{The client that first connected to the NAT-box shows no message,
+  because the last connected client took over the IP address and port number
+  from it.}
+  \label{fig:exp1-3}
+\end{figure}
 
 
 \subsection{Too Many Clients; Too Few Threads}
