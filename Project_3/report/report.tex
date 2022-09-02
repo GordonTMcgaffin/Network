@@ -4,18 +4,22 @@
 % Author:  J. P. Visser (21553416@sun.ac.za)
 % Date:    2022-09-02
 
+
 \documentclass[10pt, a4paper]{article}
+
 
 \usepackage{amsmath}
 \usepackage{booktabs}
 \usepackage{graphicx}
-%\graphicspath{ {} }
+\graphicspath{ {./images/exp1/}{./images/exp2/} }
+
 
 \title{CS 354 Project 3: Network Address Translation}
 \author{Group 41: \vspace{0.5em} \\
         G. Mcgaffin (23565608@sun.ac.za) \vspace{0.3em} \\
         J.\ P.\ Visser (21553416@sun.ac.za)}
 \date{\vspace{1em} 2 September 2022}
+
 
 \begin{document}
 
@@ -130,8 +134,8 @@ The client implementation had the following requirements:
 In this document we will provide a complete view of our implementation, by
 discussing its design (\S\ref{sec:design}), giving a breakdown of the files into
 which it is organized (\S\ref{sec:fdesc}), and providing a high level
-description, providing more details where necessary, of the flow of execution of
-the two programs which it comprises (\S\ref{sec:pdesc}).
+description, with more details where necessary, of the flow of execution of the
+two programs which it comprises (\S\ref{sec:pdesc}).
 
 We are confident that our implementation meets all of the requirements. However,
 we did not implement any features beyond those listed in the requirements
@@ -141,8 +145,9 @@ serious or unexpected issues during the development process, so this topic, too,
 will be excluded.
 
 Furthermore, we will discuss experiments we have conducted (\S\ref{sec:exp}),
-compilation and execution of the router and client (\S\ref{sec:comp} and
-\S\ref{sec:exec}), as well as the libraries we made use of (\S\ref{sec:libs}).
+significant data structures (\S\ref{sec:sigds}), compilation and execution of
+the router and client (\S\ref{sec:comp} and \S\ref{sec:exec}), as well as the
+libraries we made use of (\S\ref{sec:libs}).
 
 
 % --- File Descriptions ------------------------------------------------------ %
@@ -173,6 +178,7 @@ compilation and execution of the router and client (\S\ref{sec:comp} and
     receives paquets, sent by other clients, from the NAT-box and displays
     appropriate information about them to the user.
 \end{itemize}
+
 
 % --- Program Description ---------------------------------------------------- %
 
@@ -255,7 +261,7 @@ with some more detailed descriptions of its operation.
 % --- Experiments ------------------------------------------------------------ %
 
 \section{Experiments}
-\label{ssec:exp}
+\label{sec:exp}
 
 
 \subsection{Duplicate IP address and Port Number}
@@ -318,7 +324,8 @@ use $n$ threads, but $n + 1$ clients attempt to connect, what is the result?
 
 It is expected that the last client to attempt to connect to the NAT-box will
 ``hang" and do nothing until one of the other clients disconnects from the
-NAT-box, freeing a thread to handle the waiting client.
+NAT-box, freeing a thread to handle the waiting client. The waiting client will
+then connect to the NAT-box.
 
 
 \subsubsection{Test}
@@ -335,7 +342,36 @@ the aforementioned client that was unable to connect.
 \subsubsection{Findings}
 \label{sssec:toomanyfind}
 
-TODO
+The test disproved our hypothesis. Although the client that could not initially
+connect (i.e., the third client) did ``hang" (Figure \ref{fig:exp2-1}), once one
+of the other two clients disconnected, it did not successfully connect to the
+NAT-box (Figure \ref{fig:exp2-3}). Also out of line with our expectations, when
+the third client started up and tried to connect to the NAT-box, it caused the
+NAT-box to throw a \texttt{ArrayIndexOutOfBoundsException} (Figure
+\ref{fig:exp2-2}).
+
+\begin{figure}
+  \centering
+  \includegraphics[width=12cm]{exp2-1}
+  \caption{Third client ``hanging", unable to establish a connection with the
+  NAT-box.}
+  \label{fig:exp2-1}
+\end{figure}
+
+\begin{figure}
+  \centering
+  \includegraphics[width=12cm]{exp2-2}
+  \caption{\texttt{ArrayIndexOutOfBoundsException} thrown by the NAT-box when
+  the third client tries to connect to it.}
+  \label{fig:exp2-2}
+\end{figure}
+
+\begin{figure}
+  \centering
+  \includegraphics[width=12cm]{exp2-3}
+  \caption{NAT-box output after one of the other clients disconnects.}
+  \label{fig:exp2-3}
+\end{figure}
 
 
 % --- Significant Data Structures -------------------------------------------- %
