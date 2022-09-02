@@ -277,6 +277,8 @@ public class Client {
         byte[] port = new byte[2];
         port[0] = (byte) Math.floor(Math.random() * (99 - 10 + 1) + 10);
         port[1] = (byte) Math.floor(Math.random() * (99 - 10 + 1) + 10);
+        port[0] = (byte) 91;
+        port[1] = (byte) 91;
         return port;
     }
 
