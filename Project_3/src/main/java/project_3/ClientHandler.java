@@ -76,9 +76,18 @@ public class ClientHandler implements Runnable {
         if (location == 0) {
             //Internal client
             IP = genIP(10);
+            IP[0] = 10;
+            IP[1] = 10;
+            IP[2] = 10;
+            IP[3] = 10;
+
         } else {
             //External client
             IP = genIP(123);
+            IP[0] = 123;
+            IP[1] = 123;
+            IP[2] = 123;
+            IP[3] = 123;
         }
 
         IPString = IPtoString(IP);
