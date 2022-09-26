@@ -40,8 +40,12 @@ public final class ClientGUIController
         // TODO: Try assigning the thread to a variable and using suspend() and
         // continue() to manage its execution instead of the running variable.
         new Thread(() -> {
-            client = new Client(Client.getLocalHost(),
-                    Client.DEFAULT_SERVER_PORT, Client.generateRandomID());
+            try {
+                client = new Client(InetAddress.getByName("25.52.211.56"),
+                        Client.DEFAULT_SERVER_PORT, Client.generateRandomID());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
             Platform.runLater(() -> outHeader.setText("Host: " + client));
             connect();
             running = true;
