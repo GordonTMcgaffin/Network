@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
+
+<GridPane xmlns:fx="http://javafx.com/fxml" fx:controller="ClientGUIController"
+    alignment="center" hgap="15" vgap="15">
+    <padding>
+        <Insets left="15" right="15" top="15" bottom="15"/>
+    </padding>
+    <columnConstraints>
+        <ColumnConstraints hgrow="always" percentWidth="80.0"/>
+        <ColumnConstraints hgrow="always" percentWidth="20.0"/>
+    </columnConstraints>
+    <rowConstraints>
+        <RowConstraints vgrow="always" percentHeight="5.0"/>
+        <RowConstraints vgrow="always" percentHeight="70.0"/>
+        <RowConstraints vgrow="always" percentHeight="20.0"/>
+        <RowConstraints vgrow="always" percentHeight="5.0"/>
+    </rowConstraints>
+    <children>
+        <Label fx:id="outHeader" GridPane.columnIndex="0" GridPane.rowIndex="0"
+            GridPane.halignment="center" GridPane.valignment="center"/>
+        <ListView fx:id="out" GridPane.columnIndex="0" GridPane.rowIndex="1"/>
+        <TextArea fx:id="in" promptText="Enter command here..."
+            GridPane.columnIndex="0" GridPane.rowIndex="2"/>
+        <HBox alignment="center" spacing="15"
+            GridPane.columnIndex="0" GridPane.rowIndex="3"
+            GridPane.halignment="center" GridPane.valignment="center">
+            <children>
+                <Button fx:id="enterButton" text="Enter"
+                    onAction="#enterButtonHandler"/>
+                <Button fx:id="voiceNoteButton" text="Record"
+                    onAction="#voiceNoteButtonHandler"/>
+                <Button fx:id="channelButton" text="Start channel"
+                    onAction="#channelButtonHandler"/>
+            </children>
+        </HBox>
+        <Label text="Online" GridPane.columnIndex="1" GridPane.rowIndex="0"
+            GridPane.halignment="center" GridPane.valignment="center"/>
+        <ListView fx:id="online"
+            GridPane.columnIndex="1" GridPane.rowIndex="1"/>
+    </children>
+</GridPane>

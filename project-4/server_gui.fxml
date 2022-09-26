@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.application.*?>
+<?import javafx.geometry.*?>
+<?import javafx.scene.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
+<?import javafx.stage.*?>
+
+<GridPane xmlns:fx="http://javafx.com/fxml" fx:controller="ServerGUI"
+    alignment="center" hgap="15" vgap="15">
+    <padding>
+        <Insets left="15" right="15" top="15" bottom="15"/>
+    </padding>
+    <columnConstraints>
+        <ColumnConstraints hgrow="always" percentWidth="80.0"/>
+        <ColumnConstraints hgrow="always" percentWidth="20.0"/>
+    </columnConstraints>
+    <rowConstraints>
+        <RowConstraints vgrow="always" percentHeight="5.0"/>
+        <RowConstraints vgrow="always" percentHeight="95.0"/>
+    </rowConstraints>
+    <children>
+        <Label text="Client Activity"
+            GridPane.columnIndex="0" GridPane.rowIndex="0"
+            GridPane.halignment="center" GridPane.valignment="center"/>
+        <ListView fx:id="out" GridPane.columnIndex="0" GridPane.rowIndex="1"/>
+        <Label text="Online" GridPane.columnIndex="1" GridPane.rowIndex="0"
+            GridPane.halignment="center" GridPane.valignment="center"/>
+        <ListView fx:id="online"
+            GridPane.columnIndex="1" GridPane.rowIndex="1"/>
+    </children>
+</GridPane>
