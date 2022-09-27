@@ -41,19 +41,23 @@ public final class ClientGUIController
     {
         voiceNoteBuffer = new LinkedBlockingQueue<>();
         voiceNotes = new ConcurrentLinkedDeque<>();
+        try {
+            client = new Client(InetAddress.getByName("25.52.211.56"),
+                    Client.DEFAULT_SERVER_PORT, Client.generateRandomID());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        connect();
     }
 
     @Override
     public void initialize(URL url, ResourceBundle resources)
     {
+        outHeader.setText("Host: " + client);
         online.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
         in.requestFocus();
 
         new Thread(() -> {
-            client = new Client(Client.getLocalHost(),
-                    Client.DEFAULT_SERVER_PORT, Client.generateRandomID());
-            Platform.runLater(() -> outHeader.setText("Host: " + client));
-            connect();
             running = true;
             while (running) {
                 Message m = receive();
