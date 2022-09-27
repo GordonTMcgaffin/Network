@@ -32,8 +32,10 @@
             <children>
                 <Button fx:id="enterButton" text="Enter"
                     onAction="#enterButtonHandler"/>
-                <Button fx:id="voiceNoteButton" text="Record"
-                    onAction="#voiceNoteButtonHandler"/>
+                <Button fx:id="recordButton" text="Record"
+                    onAction="#recordButtonHandler"/>
+                <Button fx:id="playButton" text="Play"
+                    onAction="#playButtonHandler"/>
                 <Button fx:id="channelButton" text="Start channel"
                     onAction="#channelButtonHandler"/>
             </children>

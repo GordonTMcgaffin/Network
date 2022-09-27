@@ -68,8 +68,9 @@ public final class ClientHandler
                         }
                     });
                     serverSend("You started a new channel.");
-                    channel.add(this);
                     channels.put(channel.getGroup(), channel);
+                    channel.add(this);
+                    send(m);
                     break;
                 case "server":
                     String text = m.getText();

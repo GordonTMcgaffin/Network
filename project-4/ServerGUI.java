@@ -9,9 +9,6 @@ import javafx.stage.*;
 public final class ServerGUI
     extends Application {
 
-    @FXML private ListView<String> out;
-    @FXML private ListView<String> online;
-
     @Override
     public void start(Stage primaryStage)
         throws Exception

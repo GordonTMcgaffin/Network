@@ -4,6 +4,7 @@ import javax.sound.sampled.*;
 
 public final class VoIP {
 
+    public static final int DEFAULT_VOIP_PORT = 9090;
     public static final int AUDIO_SAMPLE_RATE = 8000;
     public static final int AUDIO_SAMPLE_SIZE = 16;
     public static final int AUDIO_CHANNELS = 1;
@@ -20,12 +21,6 @@ public final class VoIP {
     {
         in = new VoIPIn(group, port, AUDIO_FORMAT);
         out = new VoIPOut(group, port, AUDIO_FORMAT);
-    }
-
-    public void open()
-    {
-        in.open();
-        out.open();
     }
 
     public void close()

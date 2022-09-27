@@ -9,7 +9,7 @@ public final class Message
     private String sender;
     private String receiver;
     private String text;
-    private List<byte[]> audio;
+    private Queue<byte[]> audio;
     private List<String> clientIDs;
     private InetAddress group;
 
@@ -31,7 +31,7 @@ public final class Message
         return this;
     }
 
-    public Message setAudio(List<byte[]> audio)
+    public Message setAudio(Queue<byte[]> audio)
     {
         this.audio = audio;
         return this;
@@ -64,7 +64,7 @@ public final class Message
         return text;
     }
 
-    public List<byte[]> getAudio()
+    public Queue<byte[]> getAudio()
     {
         return audio;
     }

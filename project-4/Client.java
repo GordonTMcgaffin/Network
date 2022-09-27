@@ -3,6 +3,8 @@ import java.net.*;
 import java.util.*;
 import java.util.concurrent.*;
 
+import static java.lang.System.err;
+
 public final class Client {
 
     public static final int DEFAULT_SERVER_PORT = 9090;

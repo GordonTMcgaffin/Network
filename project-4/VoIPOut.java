@@ -4,19 +4,9 @@ import javax.sound.sampled.*;
 
 public final class VoIPOut {
 
-    private final InetAddress group;
-    private final int port;
-    private final AudioFormat format;
     private boolean listening;
 
     public VoIPOut(InetAddress group, int port, AudioFormat format)
-    {
-        this.group = group;
-        this.port = port;
-        this.format = format;
-    }
-
-    public void open()
     {
         new Thread(() -> {
             try (AudioOut out = new AudioOut(format);
