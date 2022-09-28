@@ -30,10 +30,20 @@ public final class ClientHandler
             e.printStackTrace();
         }
 
-        id = receive().getText();
-        server.broadcast(this + " has signed on.");
-        handlers.put(id, this);
-        server.broadcastClientList();
+        String id = null;
+        try {
+            id = receive().getText();
+        } catch (SocketException se) {
+            se.printStackTrace();
+        }
+        this.id = id;
+        if (id.equals("server")) {
+            server.setServerClientHandler(this);
+        } else {
+            server.broadcast(this + " signed on");
+            handlers.put(id, this);
+            server.broadcastClientList();
+        }
     }
 
     @Override
@@ -41,105 +51,120 @@ public final class ClientHandler
     {
         running = true;
         while (running) {
-            Message m = receive();
-            if (m == null) {
-                continue;
-            }
-            switch (m.getReceiver()) {
-                case "list":
-                    if (inChannel()) {
-                        serverSend("You are already in a channel." +
-                                "Channel creation aborted.");
-                        continue;
-                    }
-                    m.setText("channel_invite");
-                    channel = new Channel(server);
-                    m.setGroup(channel.getGroup());
-                    List<String> clientIDs = m.getClientIDs();
-                    m.setClientIDs(null);
-                    clientIDs.forEach(id -> {
-                        ClientHandler handler = handlers.getOrDefault(id, null);
-                        if (handler == null) {
-                            serverSend(id + " could not be found.");
-                        } else if (handler.inChannel()) {
-                            serverSend(id + " is already in a channel.");
-                        } else {
-                            handler.send(m);
+            try {
+                Message m = receive();
+                if (m == null) {
+                    continue;
+                }
+                switch (m.getReceiver()) {
+                    case "list":
+                        if (inChannel()) {
+                            serverSend("You are already in a channel." +
+                                    "Channel creation aborted");
+                            continue;
                         }
-                    });
-                    serverSend("You started a new channel.");
-                    channels.put(channel.getGroup(), channel);
-                    channel.add(this);
-                    send(m);
-                    break;
-                case "server":
-                    String text = m.getText();
-                    if (text == null) {
-                        serverSend("Command not recognized: no text.");
-                    }
-                    switch (text) {
-                        case "decline_channel":
-                            channels.get(m.getGroup()).serverBroadcast(
-                                    this + " declined to join the channel.");
-                            break;
-                        case "join_channel":
-                            if (inChannel()) {
-                                serverSend("You are already in a channel.");
+                        m.setText("channel_invite");
+                        channel = new Channel(server);
+                        m.setGroup(channel.getGroup());
+                        List<String> clientIDs = m.getClientIDs();
+                        m.setClientIDs(null);
+                        clientIDs.forEach(id -> {
+                            ClientHandler handler =
+                                handlers.getOrDefault(id, null);
+                            if (handler == null) {
+                                serverSend(id + " could not be found");
+                            } else if (handler.inChannel()) {
+                                serverSend(id + " is already in a channel");
                             } else {
-                                channel = channels.get(m.getGroup());
-                                channel.add(this);
+                                handler.send(m);
                             }
-                            break;
-                        case "exit_channel":
-                            if (inChannel()) {
-                                channel.remove(this);
-                                serverSend("You left the channel.");
-                                if (channel.isEmpty()) {
-                                    channels.remove(channel);
+                        });
+                        serverSend("You started a new channel");
+                        channels.put(channel.getGroup(), channel);
+                        channel.add(this);
+                        send(m);
+                        log("started " + channel);
+                        break;
+                    case "server":
+                        String text = m.getText();
+                        if (text == null) {
+                            serverSend("Command not recognized: no text");
+                            log("sent null command");
+                        }
+                        switch (text) {
+                            case "decline_channel":
+                                channels.get(m.getGroup())
+                                    .serverBroadcast(this +
+                                            " declined to join the channel");
+                                log("declined " + m.getGroup());
+                                break;
+                            case "join_channel":
+                                if (inChannel()) {
+                                    serverSend("You are already in a channel");
+                                } else {
+                                    channel = channels.get(m.getGroup());
+                                    channel.add(this);
+                                    log("joined " + channel);
                                 }
-                                channel = null;
-                            } else {
-                                serverSend("You are not in a channel.");
-                            }
-                            break;
-                        default:
-                            serverSend("Command not recognized: unknown.");
-                            break;
-                    }
-                    break;
-                case "all":
-                    broadcast(m);
-                    break;
-                default:
-                    String receiver = m.getReceiver();
-                    ClientHandler handler =
-                        handlers.getOrDefault(receiver, null);
-                    if (handler == null) {
-                        serverSend(receiver + " is not a recognized ID");
-                    } else if ((!inChannel() && !handler.inChannel()) ||
-                                (channel != null &&
-                                 channel.contains(handler))) {
-                        handler.send(m);
-                    } else {
-                        serverSend(handler + " could not be reached.");
-                    }
-                    break;
+                                break;
+                            case "exit_channel":
+                                if (inChannel()) {
+                                    channel.remove(this);
+                                    log("left " + channel);
+                                    serverSend("You left the channel");
+                                    if (channel.isEmpty()) {
+                                        channels.remove(channel);
+                                    }
+                                    channel = null;
+                                } else {
+                                    serverSend("You are not in a channel");
+                                }
+                                break;
+                            default:
+                                serverSend("Command not recognized: unknown");
+                                log("sent unrecognized command");
+                                break;
+                        }
+                        break;
+                    case "all":
+                        broadcast(m);
+                        log("sent message to all");
+                        break;
+                    default:
+                        String receiver = m.getReceiver();
+                        ClientHandler handler =
+                            handlers.getOrDefault(receiver, null);
+                        if (handler == null) {
+                            serverSend(receiver + " is not a recognized ID");
+                        } else if ((!inChannel() && !handler.inChannel()) ||
+                                    (channel != null &&
+                                     channel.contains(handler))) {
+                            handler.send(m);
+                            log("sent message to " + m.getReceiver());
+                        } else {
+                            serverSend(handler + " could not be reached");
+                        }
+                        break;
+                }
+            } catch (SocketException se) {
+                close();
             }
         }
     }
 
     private Message receive()
+        throws SocketException
     {
         Message m = null;
         try {
             m = (Message) in.readObject(); 
+        } catch (EOFException eofe) {
+            // Lost connection to client.
+            close();
+        } catch (SocketException se) {
+            throw se;
         } catch (Exception e) {
-            if (EOFException.class.isInstance(e)) {
-                // Lost connection to client.
-                close();
-            } else {
-                e.printStackTrace();
-            }
+            e.printStackTrace();
         }
         return m;
     }
@@ -150,7 +175,7 @@ public final class ClientHandler
         try {
             out.writeObject(m);
         } catch (Exception e) {
-            e.printStackTrace();
+            // IGNORE
         }
     }
 
@@ -171,6 +196,11 @@ public final class ClientHandler
         server.send(this, text);
     }
 
+    private void log(String text)
+    {
+        server.log(this + " " + text);
+    }
+
     public boolean inChannel()
     {
         return (channel != null);
@@ -184,13 +214,14 @@ public final class ClientHandler
 
     public void close()
     {
-        if (inChannel()) {
-            channel.remove(this);
+        if (!id.equals("server")) {
+            if (inChannel()) {
+                channel.remove(this);
+            }
+            handlers.remove(this.id);
+            server.broadcast(this + " signed off");
+            server.broadcastClientList();
         }
-        handlers.remove(this.id);
-        server.broadcast(this + " signed off.");
-        server.broadcastClientList();
-
         running = false;
         try {
             out.close();

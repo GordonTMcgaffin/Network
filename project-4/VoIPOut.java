@@ -20,6 +20,7 @@ public final class VoIPOut {
                     DatagramPacket packet =
                         new DatagramPacket(data, data.length);
                     socket.receive(packet);
+                    // This may be a problem area.
                     if (!packet.getAddress().equals(localhost)) {
                         out.write(data);
                     }

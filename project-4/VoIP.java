@@ -4,10 +4,10 @@ import javax.sound.sampled.*;
 
 public final class VoIP {
 
-    public static final int DEFAULT_VOIP_PORT = 9090;
-    public static final int AUDIO_SAMPLE_RATE = 8000;
+    public static final int DEFAULT_PORT = 9090;
+    public static final int AUDIO_SAMPLE_RATE = 48000;
     public static final int AUDIO_SAMPLE_SIZE = 16;
-    public static final int AUDIO_CHANNELS = 1;
+    public static final int AUDIO_CHANNELS = 2;
     public static final boolean AUDIO_SIGNED = true;
     public static final boolean AUDIO_BIG_ENDIAN = false;
     public static final AudioFormat AUDIO_FORMAT =

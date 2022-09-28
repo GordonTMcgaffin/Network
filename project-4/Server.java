@@ -1,6 +1,7 @@
 import java.io.*;
 import java.net.*;
 import java.util.*;
+import java.util.concurrent.*;
 
 import static java.lang.System.err;
 
@@ -8,8 +9,11 @@ public final class Server {
 
     public static final int DEFAULT_PORT = 9090;
 
-    private final Map<String, ClientHandler> handlers = new Hashtable<>();
-    private final Map<InetAddress, Channel> channels = new Hashtable<>();
+    private ClientHandler serverClientHandler;
+    private final Map<String, ClientHandler> handlers =
+        new ConcurrentHashMap<>();
+    private final Map<InetAddress, Channel> channels =
+        new ConcurrentHashMap<>();
     private boolean running;
 
     public Server(int port)
@@ -30,6 +34,11 @@ public final class Server {
         }).start();
     }
 
+    public void setServerClientHandler(ClientHandler handler)
+    {
+        serverClientHandler = handler;
+    }
+
     public void broadcast(String text)
     {
         broadcast(new Message().setText(text));
@@ -37,13 +46,17 @@ public final class Server {
 
     public void broadcastClientList()
     {
-        broadcast(new Message().setText("client_list")
-                .setClientIDs(handlers.keySet().stream().sorted().toList()));
+        Message m = new Message().setText("client_list")
+            .setClientIDs(handlers.keySet().stream().sorted().toList());
+        broadcast(m);
     }
 
     public void broadcast(Message m)
     {
         handlers.values().stream().forEach(handler -> send(handler, m));
+        if (serverClientHandler != null) {
+            serverClientHandler.send(m);
+        }
     }
 
     public void send(Channel channel, String text)
@@ -57,9 +70,26 @@ public final class Server {
         send(handler, new Message().setText(text));
     }
 
+    public void log(String text)
+    {
+        log(new Message().setText(text));
+    }
+
+    public void log(Message m)
+    {
+        if (serverClientHandler != null) {
+            serverClientHandler.send(m);
+        }
+    }
+
     public void send(ClientHandler handler, Message m)
     {
         handler.send(m.setSender("server"));
+    }
+
+    public ClientHandler getServerClientHandler()
+    {
+        return serverClientHandler;
     }
 
     public Map<String, ClientHandler> getClientHandlers()
@@ -75,12 +105,9 @@ public final class Server {
     public void close()
     {
         running = false;
+        if (serverClientHandler != null) {
+            serverClientHandler.close();
+        }
         handlers.values().stream().forEach(ClientHandler::close);
-    }
-
-    public static void main(String[] args)
-    {
-        int port = (args.length > 0) ? Integer.parseInt(args[0]) : DEFAULT_PORT;
-        new Server(port);
     }
 }

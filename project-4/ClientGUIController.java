@@ -1,6 +1,8 @@
 import java.io.*;
 import java.net.*;
 import java.util.*;
+import java.util.concurrent.*;
+
 import javafx.application.*;
 import javafx.fxml.*;
 import javafx.geometry.*;
@@ -10,54 +12,47 @@ import javafx.scene.control.Alert.*;
 import javafx.scene.layout.*;
 import javafx.scene.text.*;
 import javafx.stage.*;
-import java.util.concurrent.*;
 
 import static java.lang.System.err;
 
-// TODO: Make exception catching more nuanced throughout entire project.
-// TODO: Try assigning the listener thread to a variable and using suspend()
-// and continue() to manage its execution instead of the running variable.
-
-public final class ClientGUIController
-    implements Initializable {
+public final class ClientGUIController {
 
     @FXML private Label outHeader;
     @FXML private ListView<String> out;
     @FXML private TextArea in;
     @FXML private Button enterButton;
     @FXML private Button recordButton;
+    @FXML private Button playButton;
     @FXML private Button channelButton;
     @FXML private ListView<String> online;
 
-    private boolean running;
     private Client client;
-    private boolean inChannel;
-    private boolean recording;
     private LinkedBlockingQueue<byte[]> voiceNoteBuffer;
     private Deque<Queue<byte[]>> voiceNotes;
+    private boolean running;
+    private boolean recording;
     private VoIP voip;
+    private boolean inChannel;
 
-    public ClientGUIController()
+    public void initialize(String serverHostName, int serverPort)
     {
-        voiceNoteBuffer = new LinkedBlockingQueue<>();
-        voiceNotes = new ConcurrentLinkedDeque<>();
+        Client client = null;
         try {
-            client = new Client(InetAddress.getByName("25.52.211.56"),
-                    Client.DEFAULT_SERVER_PORT, Client.generateRandomID());
+            client = new Client(InetAddress.getByName(serverHostName),
+                    serverPort, Client.generateRandomID());
         } catch (Exception e) {
             e.printStackTrace();
         }
-        connect();
-    }
+        this.client = client;
+        voiceNoteBuffer = new LinkedBlockingQueue<>();
+        voiceNotes = new ConcurrentLinkedDeque<>();
 
-    @Override
-    public void initialize(URL url, ResourceBundle resources)
-    {
         outHeader.setText("Host: " + client);
         online.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
         in.requestFocus();
 
         new Thread(() -> {
+            connect();
             running = true;
             while (running) {
                 Message m = receive();
@@ -66,7 +61,7 @@ public final class ClientGUIController
                         print(m);
                         voiceNotes.add(m.getAudio());
                         print("You have " + voiceNotes.size() +
-                                " voice note(s).");
+                                " voice note(s)");
                         continue;
                     }
                     switch (m.getText()) {
@@ -75,9 +70,9 @@ public final class ClientGUIController
                                     online.getItems().setAll(m.getClientIDs()));
                             break;
                         case "channel_invite":
-                            if (m.getSender().equals(client.toString())) {
+                            if (m.getSender().equals(this.client.toString())) {
                                 voip = new VoIP(m.getGroup(),
-                                        VoIP.DEFAULT_VOIP_PORT);
+                                        VoIP.DEFAULT_PORT);
                                 break;
                             }
                             Platform.runLater(() -> {
@@ -92,9 +87,9 @@ public final class ClientGUIController
                                     if (response == ButtonType.OK) {
                                         m.setText("join_channel");
                                         channelButton.setText("Exit channel");
-                                        inChannel = true;
                                         voip = new VoIP(m.getGroup(),
-                                                VoIP.DEFAULT_VOIP_PORT);
+                                                VoIP.DEFAULT_PORT);
+                                        inChannel = true;
                                     } else {
                                         m.setText("decline_channel");
                                     }
@@ -191,7 +186,7 @@ public final class ClientGUIController
     private void playButtonHandler()
     {
         if (voiceNotes.size() == 0) {
-            print("You have no voice notes to play.");
+            print("You have no voice notes to play");
             return;
         }
         new Thread(() -> {
@@ -199,7 +194,7 @@ public final class ClientGUIController
                 print("Playing voice note...");
                 voiceNotes.pop().forEach(b -> ao.write(b));
                 print("You have " + voiceNotes.size() +
-                        " voice note(s) remaining.");
+                        " voice note(s) remaining");
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -213,9 +208,9 @@ public final class ClientGUIController
             List<String> selected =
                 online.getSelectionModel().getSelectedItems();
             if (selected.size() == 0) {
-                print("Failed. First select other clients to invite.");
+                print("Failed. First select other clients to invite");
             } else if (selected.contains(client.toString())) {
-                print("Failed. Cannot send channel invitation to yourself.");
+                print("Failed. Cannot send channel invitation to yourself");
             } else {
                 send(new Message().setReceiver("list").setText("start_channel")
                         .setClientIDs(selected.stream().toList()));
@@ -223,8 +218,8 @@ public final class ClientGUIController
                 inChannel = true;
             }
         } else {
-            exitChannel();
             send(new Message().setReceiver("server").setText("exit_channel"));
+            exitChannel();
         }
         online.getSelectionModel().clearSelection();
     }
@@ -234,8 +229,10 @@ public final class ClientGUIController
         Platform.runLater(() -> {
             channelButton.setText("Start channel");
         });
-        voip.close();
-        voip = null;
+        if (voip != null) {
+            voip.close();
+            voip = null;
+        }
         inChannel = false;
     }
 
@@ -250,18 +247,19 @@ public final class ClientGUIController
         try {
             m = client.receive();
         } catch (EOFException eofe) {
-            print("Lost connection to the server.");
+            print("Lost connection to the server");
             exitChannel();
+            client.close();
             connect();
         } catch (Exception e) {
-            exit();
+            e.printStackTrace();
         }
-
         return m;
     }
 
     private void connect()
     {
+        disableButtons(true);
         print("Attempting to connect to the server...");
         while (!client.isConnected()) {
             try {
@@ -274,7 +272,18 @@ public final class ClientGUIController
                 }
             }
         }
-        print("Connection successful.");
+        print("Connection successful");
+        disableButtons(false);
+    }
+
+    private void disableButtons(boolean b)
+    {
+        Platform.runLater(() -> {
+            enterButton.setDisable(b);
+            recordButton.setDisable(b);
+            playButton.setDisable(b);
+            channelButton.setDisable(b);
+        });
     }
 
     private void print(Message m)
@@ -293,9 +302,7 @@ public final class ClientGUIController
     public void exit()
     {
         running = false;
-        if (voip != null) {
-            voip.close();
-        }
+        exitChannel();
         client.close();
         Platform.exit();
         System.exit(0);

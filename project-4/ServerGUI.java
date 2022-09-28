@@ -13,21 +13,24 @@ public final class ServerGUI
     public void start(Stage primaryStage)
         throws Exception
     {
-        Parent root =
-            FXMLLoader.load(getClass().getResource("server_gui.fxml"));
+        FXMLLoader loader =
+            new FXMLLoader(getClass().getResource("server_gui.fxml"));
+        Parent root = loader.load();
         Scene scene = new Scene(root, 600, 500);
         primaryStage.setScene(scene);
         primaryStage.setTitle("Server");
+
+        ServerGUIController controller =
+            (ServerGUIController) loader.getController();
+        int port = (super.getParameters().getRaw().size() > 0 ?
+                Integer.parseInt(super.getParameters().getRaw().get(0)) :
+                Server.DEFAULT_PORT);
+        controller.initialize(port);
+
         primaryStage.setOnCloseRequest(e -> {
-            exit();
+            controller.exit();
         });
         primaryStage.show();
-    }
-
-    public void exit()
-    {
-        Platform.exit();
-        System.exit(0);
     }
 
     public static void main(String[] args)

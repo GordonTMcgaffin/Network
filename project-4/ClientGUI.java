@@ -20,9 +20,17 @@ public final class ClientGUI
         Scene scene = new Scene(root, 600, 500);
         primaryStage.setScene(scene);
         primaryStage.setTitle("Client");
+
+        ClientGUIController controller =
+            (ClientGUIController) loader.getController();
+        String serverHostName = (super.getParameters().getRaw().size() > 0 ?
+                super.getParameters().getRaw().get(0) : "localhost");
+        int serverPort = (super.getParameters().getRaw().size() > 1 ?
+                Integer.parseInt(super.getParameters().getRaw().get(1)) :
+                Client.DEFAULT_SERVER_PORT);
+        controller.initialize(serverHostName, serverPort);
+
         primaryStage.setOnCloseRequest(e -> {
-            ClientGUIController controller =
-                (ClientGUIController) loader.getController();
             controller.exit();
         });
         primaryStage.show();

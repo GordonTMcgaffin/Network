@@ -8,7 +8,7 @@
 <?import javafx.scene.text.*?>
 <?import javafx.stage.*?>
 
-<GridPane xmlns:fx="http://javafx.com/fxml" fx:controller="ServerGUI"
+<GridPane xmlns:fx="http://javafx.com/fxml" fx:controller="ServerGUIController"
     alignment="center" hgap="15" vgap="15">
     <padding>
         <Insets left="15" right="15" top="15" bottom="15"/>

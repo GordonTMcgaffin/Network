@@ -37,13 +37,13 @@ public final class Channel
     public void add(ClientHandler handler)
     {
         handlers.add(handler);
-        serverBroadcast(handler + " joined the channel.");
+        serverBroadcast(handler + " joined the channel");
     }
 
     public void remove(ClientHandler handler)
     {
         handlers.remove(handler);
-        serverBroadcast(handler + " left the channel.");
+        serverBroadcast(handler + " left the channel");
     }
 
     public void broadcast(ClientHandler handler, Message m)
@@ -69,6 +69,12 @@ public final class Channel
     public boolean contains(ClientHandler handler)
     {
         return handlers.contains(handler);
+    }
+
+    @Override
+    public String toString()
+    {
+        return group.toString();
     }
 
     public boolean isEmpty()
