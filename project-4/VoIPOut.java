@@ -2,6 +2,8 @@ import java.io.*;
 import java.net.*;
 import javax.sound.sampled.*;
 
+import static java.lang.System.err;
+
 public final class VoIPOut {
 
     private boolean listening;
@@ -20,7 +22,7 @@ public final class VoIPOut {
                     DatagramPacket packet =
                         new DatagramPacket(data, data.length);
                     socket.receive(packet);
-                    // This may be a problem area.
+                    err.println(packet.getAddress() + " " + localhost);
                     if (!packet.getAddress().equals(localhost)) {
                         out.write(data);
                     }

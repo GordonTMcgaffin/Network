@@ -2,6 +2,8 @@ import java.io.*;
 import java.net.*;
 import javax.sound.sampled.*;
 
+import static java.lang.System.err;
+
 public final class VoIP {
 
     public static final int DEFAULT_PORT = 9090;
