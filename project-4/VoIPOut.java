@@ -16,14 +16,13 @@ public final class VoIPOut {
                 socket.setReuseAddress(true);
                 socket.joinGroup(group);
                 byte[] data = new byte[(int) format.getSampleRate()];
-                InetAddress localhost = InetAddress.getLocalHost();
                 listening = true;
                 while (listening) {
                     DatagramPacket packet =
                         new DatagramPacket(data, data.length);
                     socket.receive(packet);
-                    err.println(packet.getAddress() + " " + localhost);
-                    if (!packet.getAddress().equals(localhost)) {
+                    if (NetworkInterface
+                            .getByInetAddress(packet.getAddress()) == null) {
                         out.write(data);
                     }
                 }
