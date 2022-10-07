@@ -10,6 +10,8 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.util.concurrent.ExecutorService;
 
 public class ClientGUINicknameController {
@@ -18,6 +20,9 @@ public class ClientGUINicknameController {
     public static ObjectInputStream inStream;
     public static ObjectOutputStream outStream;
     private static ExecutorService threadPool;
+
+    private PrivateKey privateKey;
+    private PublicKey publicKey;
     @FXML
     private Button NicknameSubmit;
     @FXML
@@ -25,11 +30,13 @@ public class ClientGUINicknameController {
     @FXML
     private Text Error;
 
-    public void init(Socket serverSocket, ObjectInputStream inStream, ObjectOutputStream outStream, ExecutorService threadPool) {
+    public void init(Socket serverSocket, ObjectInputStream inStream, ObjectOutputStream outStream, ExecutorService threadPool, PublicKey pubKey, PrivateKey priKey) {
         this.serverSocket = serverSocket;
         this.inStream = inStream;
         this.outStream = outStream;
         this.threadPool = threadPool;
+        this.privateKey = priKey;
+        this.publicKey = pubKey;
     }
 
     public void SendName(ActionEvent event) {
@@ -40,6 +47,8 @@ public class ClientGUINicknameController {
 
         if (!message.equals("")) {
             sendMessage = new Message(1, message);
+            sendMessage.setPublicKey(publicKey);
+
             try {
                 outStream.writeObject(sendMessage);
 

@@ -4,9 +4,9 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
+import java.security.PublicKey;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.LinkedBlockingQueue;
 
 public class ClientHandler implements Runnable {
     public ConcurrentHashMap<String, ClientHandler> fileList;
@@ -15,13 +15,13 @@ public class ClientHandler implements Runnable {
     public ObjectOutputStream outStream;
     public String clientNickname;
     private ConcurrentHashMap<String, ClientHandler> clientList;
-    private LinkedBlockingQueue<String> clientQueue;
+    private ConcurrentHashMap<String, PublicKey> clientQueue;
 
-    public ClientHandler(Socket cSocket, ConcurrentHashMap<String, ClientHandler> clientList, ConcurrentHashMap<String, ClientHandler> files, LinkedBlockingQueue<String> clientQueue) {
+    public ClientHandler(Socket cSocket, ConcurrentHashMap<String, ClientHandler> clientList, ConcurrentHashMap<String, ClientHandler> files, ConcurrentHashMap<String, PublicKey> clientKey) {
         this.clientSocket = cSocket;
         this.clientList = clientList;
         this.fileList = files;
-        this.clientQueue = clientQueue;
+        this.clientQueue = clientKey;
         try {
             this.outStream = new ObjectOutputStream(clientSocket.getOutputStream());
             this.inStream = new ObjectInputStream(clientSocket.getInputStream());
@@ -52,7 +52,7 @@ public class ClientHandler implements Runnable {
                         } else {
                             System.out.println("Client " + receiveMessage.message + " added to list");
                             clientList.put(receiveMessage.message, this);
-                            clientQueue.add(receiveMessage.message);
+                            clientQueue.put(receiveMessage.message, receiveMessage.publicKey);
                             sendMessage = new Message(5, "");
                             outStream.writeObject(sendMessage);
                             outStream.writeObject(clientQueue);
@@ -60,6 +60,7 @@ public class ClientHandler implements Runnable {
                             for (Map.Entry<String, ClientHandler> aClient : clientList.entrySet()) {
                                 if (aClient.getKey() != clientNickname) {
                                     sendMessage = new Message(8, receiveMessage.message);
+                                    sendMessage.setPublicKey(receiveMessage.publicKey);
                                     aClient.getValue().outStream.writeObject(sendMessage);
                                 }
                             }
