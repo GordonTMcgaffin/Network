@@ -32,7 +32,7 @@ public class ClientHandler implements Runnable {
 
     @Override
     public void run() {
-        System.out.println("Server --> ClientHandler started");
+        System.out.println("[Server]--> ClientHandler started");
         String message = "";
         Message receiveMessage;
         Message sendMessage;
@@ -43,14 +43,12 @@ public class ClientHandler implements Runnable {
                 receiveMessage = (Message) inStream.readObject();
                 switch (receiveMessage.type) {
                     case (1): {
-                        System.out.println("Received message of type 1");
+                        //Get client name and add them to client list
                         if (clientList.containsKey(receiveMessage.message)) {
-                            System.out.println("Name already in use");
                             sendMessage = new Message(6, "");
                             outStream.writeObject(sendMessage);
-                            //send packet back asking for new name
                         } else {
-                            System.out.println("Client " + receiveMessage.message + " added to list");
+                            System.out.println("[Server]-->  Client " + receiveMessage.message + " added to list");
                             clientList.put(receiveMessage.message, this);
                             clientQueue.put(receiveMessage.message, receiveMessage.publicKey);
                             sendMessage = new Message(5, "");
@@ -59,6 +57,7 @@ public class ClientHandler implements Runnable {
                             clientNickname = receiveMessage.message;
                             for (Map.Entry<String, ClientHandler> aClient : clientList.entrySet()) {
                                 if (aClient.getKey() != clientNickname) {
+                                    Thread.sleep(1);
                                     sendMessage = new Message(8, receiveMessage.message);
                                     sendMessage.setPublicKey(receiveMessage.publicKey);
                                     aClient.getValue().outStream.writeObject(sendMessage);
@@ -69,7 +68,9 @@ public class ClientHandler implements Runnable {
                     }
                     case (2): {
                         //Chat message
-                        System.out.println("Received message of type 2");
+                        System.out.println("[Server]--> Forwarding message from " + clientNickname + " to " + receiveMessage.getDestination());
+                        receiveMessage.setSource(clientNickname);
+                        clientList.get(receiveMessage.getDestination()).outStream.writeObject(receiveMessage);
                         break;
                     }
                     case (3): {
@@ -101,13 +102,29 @@ public class ClientHandler implements Runnable {
 
                         break;
                     }
+                    case (9): {
+                        clientList.get(receiveMessage.message).outStream.writeObject(receiveMessage);
+                        System.out.println("[Server]--> Sending update to " + receiveMessage.message);
+                        break;
+                    }
+                    case (10): {
+                        //Client exit
+                        for (Map.Entry<String, ClientHandler> aClient : clientList.entrySet()) {
+                            if (aClient.getKey() != clientNickname) {
+                                aClient.getValue().outStream.writeObject(receiveMessage);
+                            }
+                        }
+                        exit = closeClient();
+
+                    }
                 }
             } catch (IOException | ClassNotFoundException e) {
 
                 exit = closeClient();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
             }
         }
-
     }
 
     public boolean closeClient() {

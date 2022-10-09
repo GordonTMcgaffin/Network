@@ -3,56 +3,54 @@ package p2p;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
-import javafx.scene.control.Button;
-import javafx.scene.control.ListView;
-import javafx.scene.control.ProgressBar;
-import javafx.scene.control.TextField;
+import javafx.scene.control.*;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 public class ClientGUIController {
 
     public static Socket serverSocket;
     public static ObjectInputStream inStream;
     public static ObjectOutputStream outStream;
-    private static ExecutorService threadPool = Executors.newFixedThreadPool(6);
     private static Stage primaryStage;
-    public int packetSize = 800;
+    public int packetSize = 1500;
     private ConcurrentHashMap<String, File> fileList = new ConcurrentHashMap<>();
     private ConcurrentHashMap<String, PublicKey> clients;
     private String key;
     private int downloadPort = 9091;
     private String downloadHost = "127.0.0.1";
     private String downloadDest = "";
-
     private PrivateKey privateKey;
-    private PublicKey publicKey;
-
+    private boolean pauseUpload = false;
+    private boolean pauseDownload = false;
     @FXML
-    private Button UploadFile;
+    private Button PauseUpload;
     @FXML
-    private Button DownloadFile;
-    @FXML
-    private Button Pause;
+    private Button PauseDownload;
     @FXML
     private ListView<String> OnlineClients;
-    @FXML
-    private Button SendMessage;
     @FXML
     private TextField ChatInput;
     @FXML
@@ -63,16 +61,36 @@ public class ClientGUIController {
     private ProgressBar UploadFileProgress;
     @FXML
     private ProgressBar DownloadFileProgress;
+    @FXML
+    private ListView<String> ChatLog;
+    @FXML
+    private ListView<String> FileSearchResults;
+    @FXML
+    private TextField FileSearchInput;
+    @FXML
+    private Label Nickname;
+    @FXML
+    private Label UploadStatusMessage;
+    @FXML
+    private Label UploadErrorMessage;
+    @FXML
+    private Label DownloadErrorMessage;
+    @FXML
+    private Label DownloadStatusMessage;
+    @FXML
+    private Label ChatErrorMessage;
 
-    public void init(Socket serverSocket, ObjectInputStream inStream, ObjectOutputStream outStream, ExecutorService threadPool, Stage stage, PublicKey pubKey, PrivateKey priKey) {
+    public void init(Socket serverSocket, ObjectInputStream inStream, ObjectOutputStream outStream, ExecutorService threadPool, Stage stage, PublicKey pubKey, PrivateKey priKey, String nickname) {
         this.serverSocket = serverSocket;
         this.inStream = inStream;
         this.outStream = outStream;
-        this.threadPool = threadPool;
+        //this.threadPool = threadPool;
         this.primaryStage = stage;
         this.privateKey = priKey;
-        this.publicKey = pubKey;
-        //UploadFiles.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+        //this.publicKey = pubKey;
+        Nickname.setText(nickname);
+        ChatLog.getItems().add("Please select a clint from the clients list with ");
+        ChatLog.getItems().add("whom you would like to send a message to ");
 
         try {
             clients = (ConcurrentHashMap<String, PublicKey>) inStream.readObject();
@@ -90,61 +108,95 @@ public class ClientGUIController {
                 try {
                     Message receiveMessage = (Message) inStream.readObject();
                     switch (receiveMessage.type) {
-                        case (1): {
-                            System.out.println("Received message of type 1");
-                            break;
-                        }
                         case (2): {
                             //Chat message
-                            System.out.println("Received message of type 2");
+
+                            Cipher decryptCipher = Cipher.getInstance("RSA");
+                            decryptCipher.init(Cipher.DECRYPT_MODE, privateKey);
+
+
+                            byte[] encryptedMessageBytes = receiveMessage.getEncryptedMessage();
+                            byte[] decryptedMessageBytes = decryptCipher.doFinal(encryptedMessageBytes);
+
+                            String decryptedMessage = new String(decryptedMessageBytes, StandardCharsets.UTF_8);
+                            Platform.runLater(() -> {
+                                ChatLog.getItems().add(receiveMessage.getSource() + ": " + decryptedMessage);
+                            });
+
                             break;
                         }
                         case (3): {
                             //Uploader
                             if (fileList.containsKey(receiveMessage.message)) {
+                                UploadErrorMessage.setText("");
+                                UploadStatusMessage.setText("");
                                 Message sendMessage = new Message(4, downloadHost + ":" + downloadPort + ":" + receiveMessage.message);
                                 File file = fileList.get(receiveMessage.message);
                                 long fileSize = Files.size(Path.of(file.getPath()));
                                 Path filePath = Path.of(file.getPath());
-
-                                System.out.println("==============================");
-                                System.out.println("Setting up socket on " + downloadHost + ":" + downloadPort);
-                                System.out.println(filePath);
-                                System.out.println(file.getName());
-                                System.out.println(fileSize);
-
                                 sendMessage.setFileSize(fileSize);
                                 sendMessage.setKey(receiveMessage.getKey());
-                                outStream.writeObject(sendMessage);
+
                                 new Thread(() -> {
                                     long bytesSent = 0L;
                                     double progress = 0.0;
                                     try {
                                         ServerSocket uploadSocket = new ServerSocket(downloadPort);
+                                        uploadSocket.setSoTimeout(10);
+                                        outStream.writeObject(sendMessage);
                                         Socket downloadClient = uploadSocket.accept();
                                         ObjectOutputStream uploadStream = new ObjectOutputStream(downloadClient.getOutputStream());
-                                        InputStream fileStream = Files.newInputStream(filePath);
+                                        //InputStream fileStream = Files.newInputStream(filePath);
+                                        FileInputStream fileInputStream = new FileInputStream(file);
+                                        BufferedInputStream bufferedInputStream = new BufferedInputStream(fileInputStream);
                                         downloadPort++;
-                                        byte[] data = new byte[packetSize];
+                                        byte[] data;
                                         int bytesRead = 0;
-                                        while ((bytesRead = fileStream.read(data, 0, packetSize)) != -1) {
-                                            uploadStream.write(data, 0, bytesRead);
-                                            uploadStream.writeObject(data);
-                                            bytesSent += bytesRead;
+                                        long start = System.nanoTime();
+                                        while (bytesSent != fileSize) {
+
+                                            while (pauseUpload) {
+                                                Thread.sleep(10);
+                                            }
+
+                                            int size = packetSize;
+                                            if (fileSize - bytesSent >= size) {
+                                                bytesSent += size;
+                                            } else {
+                                                size = (int) (fileSize - bytesSent);
+                                                bytesSent = fileSize;
+                                            }
+                                            data = new byte[size];
+                                            bufferedInputStream.read(data, 0, size);
+
+                                            uploadStream.write(data);
+
                                             progress = bytesSent / ((double) fileSize);
                                             double finalProgress = progress;
                                             Platform.runLater(() -> {
                                                 UploadFileProgress.setProgress(finalProgress);
                                             });
+
+                                            Thread.sleep(0, 1);
                                         }
-                                        uploadStream.close();
+                                        uploadStream.flush();
                                         downloadClient.close();
                                         uploadSocket.close();
                                         downloadPort--;
-                                        System.out.println("Upload complete");
 
-                                    } catch (IOException e) {
-                                        //ToDo catch disconnect error
+                                        Platform.runLater(() -> {
+                                            UploadStatusMessage.setText("Upload Complete");
+                                            UploadFileProgress.setProgress(0);
+                                        });
+
+                                    } catch (SocketTimeoutException ste) {
+
+                                    } catch (IOException | InterruptedException e) {
+
+                                        Platform.runLater(() -> {
+                                            UploadErrorMessage.setText("Upload Failed");
+                                            UploadFileProgress.setProgress(0);
+                                        });
                                     }
                                 }).start();
                             }
@@ -154,6 +206,9 @@ public class ClientGUIController {
                         case (4): {
 
                             if (receiveMessage.getKey().equals(key)) {
+                                //ToDo handle multiple download attempts
+                                DownloadErrorMessage.setText("");
+                                DownloadStatusMessage.setText("");
 
                                 new Thread(() -> {
                                     long bytesWritten = 0L;
@@ -165,16 +220,24 @@ public class ClientGUIController {
                                     String fileName = address[2];
                                     Path filepath = Path.of(downloadDest, fileName);
                                     try {
-                                        OutputStream fileOut = Files.newOutputStream(filepath);
-                                        byte[] data = new byte[packetSize];
+                                        FileOutputStream fileOut = new FileOutputStream(filepath.toString());
+
+                                        BufferedOutputStream bufferedOutputStream = new BufferedOutputStream(fileOut);
+                                        byte[] data = new byte[10000];
                                         int bytesRead = 0;
+
                                         Socket uploadClient = new Socket(host, port);
-                                        System.out.println("Connected to sender");
+
                                         downloadPort++;
                                         ObjectInputStream downloadStream = new ObjectInputStream(uploadClient.getInputStream());
-                                        while ((bytesRead = downloadStream.read(data, 0, packetSize)) != -1) {
-                                            data = (byte[]) downloadStream.readObject();
+                                        while ((bytesRead = downloadStream.read(data)) != -1) {
+
+                                            while (pauseDownload) {
+                                                Thread.sleep(10);
+                                            }
+                                            //data = (byte[]) downloadStream.readObject();
                                             fileOut.write(data, 0, bytesRead);
+                                            //fileOut.flush();
                                             bytesWritten += bytesRead;
                                             progress = bytesWritten / ((double) fileSize);
                                             double finalProgress = progress;
@@ -182,10 +245,21 @@ public class ClientGUIController {
                                                 DownloadFileProgress.setProgress(finalProgress);
                                             });
                                         }
+                                        bufferedOutputStream.flush();
+                                        fileOut.flush();
+                                        fileOut.close();
                                         downloadPort--;
-                                        System.out.println("Download complete");
-                                    } catch (IOException | ClassNotFoundException e) {
-                                        throw new RuntimeException(e);
+
+                                        Platform.runLater(() -> {
+                                            DownloadStatusMessage.setText("Download Complete");
+                                            DownloadFileProgress.setProgress(0);
+                                        });
+                                    } catch (IOException | InterruptedException e) {
+
+                                        Platform.runLater(() -> {
+                                            DownloadErrorMessage.setText("Download Failed");
+                                            DownloadFileProgress.setProgress(0);
+                                        });
                                     }
                                 }).start();
                             }
@@ -198,33 +272,79 @@ public class ClientGUIController {
                         }
                         case (8): {
                             clients.put(receiveMessage.message, receiveMessage.publicKey);
+
+                            Message sendMessage = new Message(9, receiveMessage.message);
+                            sendMessage.setKey(receiveMessage.getKey());
+                            String[] items = new String[UploadFiles.getItems().size()];
+                            int i = 0;
+                            for (String item : UploadFiles.getItems()) {
+
+                                items[i] = item;
+                                i++;
+                            }
+                            sendMessage.setItems(items);
+
+                            outStream.writeObject(sendMessage);
+
+
                             Platform.runLater(() ->
                                     OnlineClients.getItems().add(receiveMessage.message));
                             break;
                         }
+                        case (9): {
+                            DownloadFilesList.getItems().addAll(receiveMessage.getItems());
+                            break;
+                        }
+                        case (10): {
+                            Platform.runLater(() -> {
+                                OnlineClients.getItems().remove(receiveMessage.getSource());
+                                String[] removeItem = receiveMessage.getItems();
+                                for (int i = 0; i < receiveMessage.getItems().length; i++) {
+
+                                    for (String item : UploadFiles.getItems()) {
+                                        if (item.equals(removeItem[i])) {
+
+                                            DownloadFilesList.getItems().remove(i);
+                                            break;
+                                        }
+
+                                    }
+                                }
+                            });
+                        }
                     }
-                } catch (IOException | ClassNotFoundException e) {
+                } catch (IOException | ClassNotFoundException | NoSuchPaddingException | NoSuchAlgorithmException |
+                         InvalidKeyException | IllegalBlockSizeException | BadPaddingException e) {
                     exit();
                 }
             }
         }).start();
-
-
     }
 
-    public void updateClientList(String name) {
-        OnlineClients.getItems().add(name);
-    }
 
     public void exit() {
         //Todo send exit message along with file list
+        String[] items = new String[UploadFiles.getItems().size()];
+        int i = 0;
+        for (String item : UploadFiles.getItems()) {
+
+            items[i] = item;
+            i++;
+        }
+
+        Message sendMessage = new Message(10, "GoodBye");
+        sendMessage.setItems(items);
+        sendMessage.setSource(Nickname.getText());
+
+
         try {
+            outStream.writeObject(sendMessage);
             inStream.close();
             outStream.close();
             serverSocket.close();
-            System.out.println("Server disconnected");
+
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            System.exit(1);
         }
         System.exit(1);
 
@@ -236,16 +356,66 @@ public class ClientGUIController {
         File file = chooser.showDialog(primaryStage);
         if (file != null) {
             downloadDest = file.getPath();
-            System.out.println(downloadDest);
+
+        }
+    }
+
+    public void searchFiles(ActionEvent event) {
+        String search = FileSearchInput.getText().toLowerCase().strip();
+        FileSearchResults.getItems().removeAll();
+        if (search != null && search != "") {
+            for (String item : DownloadFilesList.getItems()) {
+                if (item.toLowerCase().strip().contains(search)) {
+                    FileSearchResults.getItems().add(item);
+                }
+            }
         }
     }
 
     public void sendChat(ActionEvent event) {
-        System.out.println(ChatInput.getText().strip());
+        if (OnlineClients.getSelectionModel().getSelectedItems().size() != 0) {
+            ChatErrorMessage.setText("");
+            String client = (String) OnlineClients.getSelectionModel().getSelectedItems().toArray()[0];
+
+            try {
+                Cipher encryptCipher = Cipher.getInstance("RSA");
+                encryptCipher.init(Cipher.ENCRYPT_MODE, clients.get(client));
+
+                byte[] messageBytes = ChatInput.getText().getBytes(StandardCharsets.UTF_8);
+                byte[] encryptedMessageBytes = encryptCipher.doFinal(messageBytes);
+                ChatLog.getItems().add(ChatInput.getText());
+                Message sendMessage = new Message(2, "");
+                sendMessage.setDestination(client);
+                sendMessage.setEncryptedMessage(encryptedMessageBytes);
+                outStream.writeObject(sendMessage);
+
+            } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException |
+                     IllegalBlockSizeException | BadPaddingException | IOException e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            ChatErrorMessage.setText("A client must be selected");
+        }
     }
 
     public void pauseUpload(ActionEvent event) {
+        if (pauseUpload) {
+            pauseUpload = false;
+            PauseUpload.setText("Pause");
+        } else {
+            pauseUpload = true;
+            PauseUpload.setText("Resume");
+        }
+    }
 
+    public void pauseDownload(ActionEvent event) {
+        if (pauseDownload) {
+            pauseDownload = false;
+            PauseDownload.setText("Pause");
+        } else {
+            pauseDownload = true;
+            PauseDownload.setText("Resume");
+        }
     }
 
     public void uploadFile(ActionEvent event) {
@@ -253,7 +423,6 @@ public class ClientGUIController {
         chooser.setTitle("Select a File");
         File file = chooser.showOpenDialog(primaryStage);
         if (file != null) {
-            System.out.println("Added file " + file.getName());
             fileList.put(file.getName(), file);
             UploadFiles.getItems().add(file.getName());
             Message message = new Message(7, file.getName());
@@ -266,9 +435,17 @@ public class ClientGUIController {
     }
 
     public void downloadFile() {
-        //ToDo add check for file download path
-        if (DownloadFilesList.getSelectionModel().getSelectedItems() != null) {
-            String fileName = (String) DownloadFilesList.getSelectionModel().getSelectedItems().toArray()[0];
+        if (downloadDest == "") {
+            DownloadErrorMessage.setText("A download destination must be set");
+        } else if (DownloadFilesList.getSelectionModel().getSelectedItems().size() != 0 || FileSearchResults.getSelectionModel().getSelectedItems().size() != 0) {
+            DownloadErrorMessage.setText("");
+            String fileName = "";
+            if (DownloadFilesList.getSelectionModel().getSelectedItems().size() != 0) {
+                fileName = (String) DownloadFilesList.getSelectionModel().getSelectedItems().toArray()[0];
+            } else {
+                fileName = (String) FileSearchResults.getSelectionModel().getSelectedItems().toArray()[0];
+
+            }
             Message sendMessage = new Message(3, fileName);
             key = randomKeyGen();
             sendMessage.setKey(key);
@@ -291,7 +468,6 @@ public class ClientGUIController {
             key = key + keyString.charAt(i) + rand;
 
         }
-        //System.out.println(key);
         return key;
 
     }

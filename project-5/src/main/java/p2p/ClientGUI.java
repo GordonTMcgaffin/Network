@@ -23,6 +23,7 @@ public class ClientGUI extends Application {
     private static PrivateKey privateKey;
     private static PublicKey publicKey;
     private static ExecutorService threadPool = Executors.newFixedThreadPool(6);
+    public String nickname;
 
     public static void main(String[] args) {
 
@@ -66,7 +67,7 @@ public class ClientGUI extends Application {
         primaryStage.setScene(new Scene(root, 600, 400));
 
         ClientGUINicknameController nicknameController = (ClientGUINicknameController) loader.getController();
-        nicknameController.init(serverSocket, inStream, outStream, threadPool, publicKey, privateKey);
+        nicknameController.init(serverSocket, inStream, outStream, threadPool, publicKey, privateKey, nickname);
         primaryStage.show();
     }
 
@@ -74,11 +75,11 @@ public class ClientGUI extends Application {
         FXMLLoader mainLoader = new FXMLLoader((getClass().getResource(("client-view.fxml"))));
         Parent mainRoot = mainLoader.load();
         ClientGUIController clientController = (ClientGUIController) mainLoader.getController();
-        clientController.init(serverSocket, inStream, outStream, threadPool, stage, publicKey, privateKey);
+        clientController.init(serverSocket, inStream, outStream, threadPool, stage, publicKey, privateKey, nickname);
         stage.setOnCloseRequest(e -> {
             clientController.exit();
         });
-        stage.setHeight(650);
+        stage.setHeight(800);
         stage.setWidth(1400);
         stage.show();
         stage.getScene().setRoot(mainRoot);

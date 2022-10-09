@@ -20,7 +20,7 @@ public class ClientGUINicknameController {
     public static ObjectInputStream inStream;
     public static ObjectOutputStream outStream;
     private static ExecutorService threadPool;
-
+    public String nickname;
     private PrivateKey privateKey;
     private PublicKey publicKey;
     @FXML
@@ -30,13 +30,14 @@ public class ClientGUINicknameController {
     @FXML
     private Text Error;
 
-    public void init(Socket serverSocket, ObjectInputStream inStream, ObjectOutputStream outStream, ExecutorService threadPool, PublicKey pubKey, PrivateKey priKey) {
+    public void init(Socket serverSocket, ObjectInputStream inStream, ObjectOutputStream outStream, ExecutorService threadPool, PublicKey pubKey, PrivateKey priKey, String nickname) {
         this.serverSocket = serverSocket;
         this.inStream = inStream;
         this.outStream = outStream;
         this.threadPool = threadPool;
         this.privateKey = priKey;
         this.publicKey = pubKey;
+        this.nickname = nickname;
     }
 
     public void SendName(ActionEvent event) {
@@ -57,8 +58,9 @@ public class ClientGUINicknameController {
                 if (receiveMessage.type == 6) {
                     Error.setText("Nickname already in use, please enter another");
                 } else {
-                    System.out.println("User name set as " + message);
+
                     ClientGUI m = new ClientGUI();
+                    m.nickname = sendMessage.message;
                     m.stage.hide();
                     m.changeView();
                 }
@@ -72,9 +74,6 @@ public class ClientGUINicknameController {
     }
 
     public void exit() {
-        //Todo send exit message along with file list
-        System.out.println("Server disconnected");
         System.exit(1);
-
     }
 }
