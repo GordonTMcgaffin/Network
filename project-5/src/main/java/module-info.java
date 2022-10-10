@@ -5,6 +5,6 @@ module com.p2p.project5 {
     requires org.controlsfx.controls;
     requires org.kordamp.bootstrapfx.core;
 
-    opens p2p to javafx.fxml;
-    exports p2p;
+    opens com.p2p to javafx.fxml;
+    exports com.p2p;
 }

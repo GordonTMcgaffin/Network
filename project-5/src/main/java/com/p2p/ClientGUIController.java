@@ -1,4 +1,4 @@
-package p2p;
+package com.p2p;
 
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
@@ -8,14 +8,9 @@ import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
-import javax.crypto.BadPaddingException;
-import javax.crypto.Cipher;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
+import javax.crypto.*;
 import java.io.*;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.net.SocketTimeoutException;
+import java.net.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -27,7 +22,6 @@ import java.security.PublicKey;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
 
 public class ClientGUIController {
 
@@ -35,7 +29,7 @@ public class ClientGUIController {
     public static ObjectInputStream inStream;
     public static ObjectOutputStream outStream;
     private static Stage primaryStage;
-    public int packetSize = 1500;
+    public int packetSize = 400;
     private ConcurrentHashMap<String, File> fileList = new ConcurrentHashMap<>();
     private ConcurrentHashMap<String, PublicKey> clients;
     private String key;
@@ -43,8 +37,10 @@ public class ClientGUIController {
     private String downloadHost = "127.0.0.1";
     private String downloadDest = "";
     private PrivateKey privateKey;
+    private PublicKey publicKey;
     private boolean pauseUpload = false;
     private boolean pauseDownload = false;
+    private SecretKey fileKey;
     @FXML
     private Button PauseUpload;
     @FXML
@@ -80,17 +76,34 @@ public class ClientGUIController {
     @FXML
     private Label ChatErrorMessage;
 
-    public void init(Socket serverSocket, ObjectInputStream inStream, ObjectOutputStream outStream, ExecutorService threadPool, Stage stage, PublicKey pubKey, PrivateKey priKey, String nickname) {
+    public void init(Socket serverSocket, ObjectInputStream inStream, ObjectOutputStream outStream, Stage stage, PrivateKey priKey, PublicKey pubKey, String nickname, String myHost) {
         this.serverSocket = serverSocket;
         this.inStream = inStream;
         this.outStream = outStream;
-        //this.threadPool = threadPool;
         this.primaryStage = stage;
         this.privateKey = priKey;
-        //this.publicKey = pubKey;
+        this.publicKey = pubKey;
+
+        InetAddress ip;
+        String hostname;
+        try {
+            ip = InetAddress.getLocalHost();
+            downloadHost = ip.getHostAddress();
+        } catch (UnknownHostException e) {
+            e.printStackTrace();
+        }
+
         Nickname.setText(nickname);
         ChatLog.getItems().add("Please select a clint from the clients list with ");
         ChatLog.getItems().add("whom you would like to send a message to ");
+
+        try {
+            KeyGenerator fileKeyGenerator = KeyGenerator.getInstance("AES");
+            fileKeyGenerator.init(128);
+            fileKey = fileKeyGenerator.generateKey();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
 
         try {
             clients = (ConcurrentHashMap<String, PublicKey>) inStream.readObject();
@@ -128,9 +141,11 @@ public class ClientGUIController {
                         case (3): {
                             //Uploader
                             if (fileList.containsKey(receiveMessage.message)) {
+                                PublicKey downloaderPublicKey = receiveMessage.getPublicKey();
                                 UploadErrorMessage.setText("");
                                 UploadStatusMessage.setText("");
                                 Message sendMessage = new Message(4, downloadHost + ":" + downloadPort + ":" + receiveMessage.message);
+                                System.out.println(downloadHost + ":" + downloadPort + ":" + receiveMessage.message);
                                 File file = fileList.get(receiveMessage.message);
                                 long fileSize = Files.size(Path.of(file.getPath()));
                                 Path filePath = Path.of(file.getPath());
@@ -138,21 +153,20 @@ public class ClientGUIController {
                                 sendMessage.setKey(receiveMessage.getKey());
 
                                 new Thread(() -> {
+
                                     long bytesSent = 0L;
-                                    double progress = 0.0;
+                                    double progress;
                                     try {
+
                                         ServerSocket uploadSocket = new ServerSocket(downloadPort);
                                         uploadSocket.setSoTimeout(10);
                                         outStream.writeObject(sendMessage);
                                         Socket downloadClient = uploadSocket.accept();
                                         ObjectOutputStream uploadStream = new ObjectOutputStream(downloadClient.getOutputStream());
-                                        //InputStream fileStream = Files.newInputStream(filePath);
                                         FileInputStream fileInputStream = new FileInputStream(file);
                                         BufferedInputStream bufferedInputStream = new BufferedInputStream(fileInputStream);
                                         downloadPort++;
                                         byte[] data;
-                                        int bytesRead = 0;
-                                        long start = System.nanoTime();
                                         while (bytesSent != fileSize) {
 
                                             while (pauseUpload) {
@@ -168,6 +182,7 @@ public class ClientGUIController {
                                             }
                                             data = new byte[size];
                                             bufferedInputStream.read(data, 0, size);
+
 
                                             uploadStream.write(data);
 
@@ -192,7 +207,6 @@ public class ClientGUIController {
                                     } catch (SocketTimeoutException ste) {
 
                                     } catch (IOException | InterruptedException e) {
-
                                         Platform.runLater(() -> {
                                             UploadErrorMessage.setText("Upload Failed");
                                             UploadFileProgress.setProgress(0);
@@ -206,20 +220,21 @@ public class ClientGUIController {
                         case (4): {
 
                             if (receiveMessage.getKey().equals(key)) {
-                                //ToDo handle multiple download attempts
                                 DownloadErrorMessage.setText("");
                                 DownloadStatusMessage.setText("");
 
                                 new Thread(() -> {
                                     long bytesWritten = 0L;
-                                    double progress = 0.0;
+                                    double progress;
                                     String[] address = receiveMessage.message.split(":");
                                     long fileSize = receiveMessage.fileSize;
                                     String host = address[0];
                                     int port = Integer.parseInt(address[1]);
                                     String fileName = address[2];
+
                                     Path filepath = Path.of(downloadDest, fileName);
                                     try {
+
                                         FileOutputStream fileOut = new FileOutputStream(filepath.toString());
 
                                         BufferedOutputStream bufferedOutputStream = new BufferedOutputStream(fileOut);
@@ -235,9 +250,10 @@ public class ClientGUIController {
                                             while (pauseDownload) {
                                                 Thread.sleep(10);
                                             }
-                                            //data = (byte[]) downloadStream.readObject();
+
+
                                             fileOut.write(data, 0, bytesRead);
-                                            //fileOut.flush();
+
                                             bytesWritten += bytesRead;
                                             progress = bytesWritten / ((double) fileSize);
                                             double finalProgress = progress;
@@ -271,7 +287,7 @@ public class ClientGUIController {
                             break;
                         }
                         case (8): {
-                            clients.put(receiveMessage.message, receiveMessage.publicKey);
+                            clients.put(receiveMessage.message, receiveMessage.getPublicKey());
 
                             Message sendMessage = new Message(9, receiveMessage.message);
                             sendMessage.setKey(receiveMessage.getKey());
@@ -387,6 +403,7 @@ public class ClientGUIController {
                 Message sendMessage = new Message(2, "");
                 sendMessage.setDestination(client);
                 sendMessage.setEncryptedMessage(encryptedMessageBytes);
+
                 outStream.writeObject(sendMessage);
 
             } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException |
@@ -449,6 +466,7 @@ public class ClientGUIController {
             Message sendMessage = new Message(3, fileName);
             key = randomKeyGen();
             sendMessage.setKey(key);
+            sendMessage.setPublicKey(publicKey);
             try {
                 outStream.writeObject(sendMessage);
             } catch (IOException e) {

@@ -1,4 +1,4 @@
-package p2p;
+package com.p2p;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -50,7 +50,7 @@ public class ClientHandler implements Runnable {
                         } else {
                             System.out.println("[Server]-->  Client " + receiveMessage.message + " added to list");
                             clientList.put(receiveMessage.message, this);
-                            clientQueue.put(receiveMessage.message, receiveMessage.publicKey);
+                            clientQueue.put(receiveMessage.message, receiveMessage.getPublicKey());
                             sendMessage = new Message(5, "");
                             outStream.writeObject(sendMessage);
                             outStream.writeObject(clientQueue);
@@ -59,7 +59,7 @@ public class ClientHandler implements Runnable {
                                 if (aClient.getKey() != clientNickname) {
                                     Thread.sleep(1);
                                     sendMessage = new Message(8, receiveMessage.message);
-                                    sendMessage.setPublicKey(receiveMessage.publicKey);
+                                    sendMessage.setPublicKey(receiveMessage.getPublicKey());
                                     aClient.getValue().outStream.writeObject(sendMessage);
                                 }
                             }

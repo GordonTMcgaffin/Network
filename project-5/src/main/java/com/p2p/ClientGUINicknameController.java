@@ -1,4 +1,4 @@
-package p2p;
+package com.p2p;
 
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;

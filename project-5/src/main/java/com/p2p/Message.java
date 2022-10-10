@@ -1,4 +1,4 @@
-package p2p;
+package com.p2p;
 
 import java.io.Serializable;
 import java.security.PublicKey;
@@ -21,7 +21,7 @@ public class Message implements Serializable {
      */
     public String message;
     public long fileSize;
-    public PublicKey publicKey;
+    private PublicKey publicKey = null;
     private String destination = "";
     private String source = "";
     private String key = "";
@@ -55,8 +55,13 @@ public class Message implements Serializable {
         this.fileSize = sz;
     }
 
+    public PublicKey getPublicKey() {
+        return publicKey;
+    }
+
     public void setPublicKey(PublicKey key) {
-        this.publicKey = key;
+
+        if (this.publicKey == null) this.publicKey = key;
     }
 
     public String[] getItems() {

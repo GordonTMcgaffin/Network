@@ -1,4 +1,4 @@
-package p2p;
+package com.p2p;
 
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
+import java.net.SocketException;
 import java.security.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -20,12 +21,16 @@ public class ClientGUI extends Application {
     public static ObjectInputStream inStream;
     public static ObjectOutputStream outStream;
     public static Stage stage;
+    public static String serverHost;
+    public static String myHost;
     private static PrivateKey privateKey;
     private static PublicKey publicKey;
     private static ExecutorService threadPool = Executors.newFixedThreadPool(6);
     public String nickname;
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws SocketException {
+        serverHost = "127.0.1.1";
+        myHost = "127.0.1.1";
 
         try {
             KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
@@ -45,11 +50,9 @@ public class ClientGUI extends Application {
     @Override
     public void start(Stage primaryStage) throws IOException {
 
-
-        String host = "127.0.0.1";
         int port = 9090;
         try {
-            serverSocket = new Socket(host, port);
+            serverSocket = new Socket(serverHost, port);
 
             outStream = new ObjectOutputStream(serverSocket.getOutputStream());
             inStream = new ObjectInputStream(serverSocket.getInputStream());
@@ -75,7 +78,7 @@ public class ClientGUI extends Application {
         FXMLLoader mainLoader = new FXMLLoader((getClass().getResource(("client-view.fxml"))));
         Parent mainRoot = mainLoader.load();
         ClientGUIController clientController = (ClientGUIController) mainLoader.getController();
-        clientController.init(serverSocket, inStream, outStream, threadPool, stage, publicKey, privateKey, nickname);
+        clientController.init(serverSocket, inStream, outStream, stage, privateKey, publicKey, nickname, myHost);
         stage.setOnCloseRequest(e -> {
             clientController.exit();
         });
