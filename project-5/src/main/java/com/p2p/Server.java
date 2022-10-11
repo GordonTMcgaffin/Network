@@ -1,8 +1,10 @@
 package com.p2p;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.UnknownHostException;
 import java.security.PublicKey;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -18,11 +20,20 @@ public class Server {
 
     public static void main(String[] args) {
         System.out.println("[Server]--> Starting server . . .");
-        int port = Integer.parseInt(args[0]);
+        int port = 9090;
         ServerSocket serverSocket;
         Socket clientSocket;
         try {
             serverSocket = new ServerSocket(port);
+            InetAddress ip;
+            String hostname;
+            try {
+                ip = InetAddress.getLocalHost();
+                hostname = ip.getHostAddress();
+                System.out.println("[Server]--> Server set up on address: " + hostname + ":" + port);
+            } catch (UnknownHostException e) {
+                e.printStackTrace();
+            }
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

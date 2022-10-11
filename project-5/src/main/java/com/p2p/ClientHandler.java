@@ -77,7 +77,11 @@ public class ClientHandler implements Runnable {
                         //File request
                         System.out.println("[Server]--> Client is requesting file " + receiveMessage.message);
                         for (Map.Entry<String, ClientHandler> aClient : clientList.entrySet()) {
-                            if (aClient.getKey() != clientNickname) {
+                            if (!aClient.getKey().equals(clientNickname)) {
+
+                                if (receiveMessage == null) {
+                                    System.out.println("Oh no");
+                                }
                                 aClient.getValue().outStream.writeObject(receiveMessage);
                             }
                         }
