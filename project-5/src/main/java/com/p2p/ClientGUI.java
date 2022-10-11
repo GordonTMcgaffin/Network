@@ -66,7 +66,7 @@ public class ClientGUI extends Application {
         FXMLLoader mainLoader = new FXMLLoader((getClass().getResource(("client-view.fxml"))));
         Parent mainRoot = mainLoader.load();
         ClientGUIController clientController = (ClientGUIController) mainLoader.getController();
-        clientController.init(serverSocket, inStream, outStream, stage, privateKey, publicKey, nickname);
+        clientController.init(serverSocket, inStream, outStream, stage, privateKey, publicKey, nickname, myHost);
         stage.setOnCloseRequest(e -> {
             clientController.exit();
         });

@@ -11,7 +11,9 @@ import javafx.stage.Stage;
 import javax.crypto.*;
 import javax.crypto.spec.IvParameterSpec;
 import java.io.*;
-import java.net.*;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -38,7 +40,6 @@ public class ClientGUIController {
     private PublicKey publicKey;
     private boolean pauseUpload = false;
     private boolean pauseDownload = false;
-    //private SecretKey fileKey;
     @FXML
     private Button PauseUpload;
     @FXML
@@ -74,33 +75,19 @@ public class ClientGUIController {
     @FXML
     private Label ChatErrorMessage;
 
-    public void init(Socket serverSocket, ObjectInputStream inStream, ObjectOutputStream outStream, Stage stage, PrivateKey priKey, PublicKey pubKey, String nickname) {
+    public void init(Socket serverSocket, ObjectInputStream inStream, ObjectOutputStream outStream, Stage stage, PrivateKey priKey, PublicKey pubKey, String nickname, String clientHost) {
         this.serverSocket = serverSocket;
         this.inStream = inStream;
         this.outStream = outStream;
         this.primaryStage = stage;
         this.privateKey = priKey;
         this.publicKey = pubKey;
+        this.downloadHost = clientHost;
 
-        InetAddress ip;
-        try {
-            ip = InetAddress.getLocalHost();
-            downloadHost = ip.getHostAddress();
-        } catch (UnknownHostException e) {
-            e.printStackTrace();
-        }
 
         Nickname.setText(nickname);
         ChatLog.getItems().add("Please select a clint from the clients list with ");
         ChatLog.getItems().add("whom you would like to send a message to ");
-
-//        try {
-//            KeyGenerator fileKeyGenerator = KeyGenerator.getInstance("AES");
-//            fileKeyGenerator.init(128);
-//            fileKey = fileKeyGenerator.generateKey();
-//        } catch (NoSuchAlgorithmException e) {
-//            throw new RuntimeException(e);
-//        }
 
         try {
             clients = (ConcurrentHashMap<String, PublicKey>) inStream.readObject();
@@ -111,14 +98,13 @@ public class ClientGUIController {
             exit();
         }
 
-
         new Thread(() -> {
             boolean exit = false;
             while (!exit) {
                 try {
-                    System.out.println("Receiving message . . .");
+
                     Message receiveMessage = (Message) inStream.readObject();
-                    System.out.println("Message received");
+
                     switch (receiveMessage.type) {
                         case (2): {
                             //Chat message
@@ -149,10 +135,6 @@ public class ClientGUIController {
 
                                 byte[] iv = new byte[16];
 
-                                for (byte b : iv) {
-                                    System.out.println(b);
-                                }
-
                                 new SecureRandom().nextBytes(iv);
 
 
@@ -173,7 +155,6 @@ public class ClientGUIController {
 
                                 sendMessage.setFileSize(fileSize);
                                 sendMessage.setKey(receiveMessage.getKey());
-                                //sendMessage.setFileKey(fileKey, ivP);
                                 new Thread(() -> {
                                     long bytesSent = 0L;
                                     double progress;
@@ -188,12 +169,10 @@ public class ClientGUIController {
 
                                         //================================================================================================================================
                                         uploadStream.writeObject(fileKey);
-                                        System.out.println(fileKey);
+
                                         uploadStream.writeObject(iv);
-                                        for (byte b : iv) {
-                                            System.out.println(b);
-                                        }
-                                        System.out.println(ivP);
+
+
                                         //================================================================================================================================
 
 
@@ -241,25 +220,23 @@ public class ClientGUIController {
                                         downloadPort--;
 
                                         Platform.runLater(() -> {
-                                            System.out.println("Upload Complete");
+
                                             UploadStatusMessage.setText("Upload Complete");
                                             UploadFileProgress.setProgress(0);
                                         });
 
                                     } catch (SocketTimeoutException ste) {
-                                        System.out.println("Client timed out");
+
                                         Platform.runLater(() -> {
                                             UploadErrorMessage.setText("Client did not connect");
                                             UploadFileProgress.setProgress(0);
                                         });
 
-                                    } catch (IOException | InterruptedException e) {
+                                    } catch (IOException | InterruptedException | IllegalBlockSizeException e) {
                                         Platform.runLater(() -> {
                                             UploadErrorMessage.setText("Upload Failed");
                                             UploadFileProgress.setProgress(0);
                                         });
-                                    } catch (IllegalBlockSizeException e) {
-                                        throw new RuntimeException(e);
                                     }
                                 }).start();
                             }
@@ -291,9 +268,9 @@ public class ClientGUIController {
                                         FileOutputStream fileOut = new FileOutputStream(filepath.toString());
 
                                         BufferedOutputStream bufferedOutputStream = new BufferedOutputStream(fileOut);
-                                        byte[] data = new byte[10000];
-                                        int bytesRead = 0;
+                                        byte[] data;
                                         Thread.sleep(100);
+
                                         Socket uploadClient = new Socket(host, port);
 
                                         downloadPort++;
@@ -301,13 +278,10 @@ public class ClientGUIController {
 
                                         //================================================================================================================================
                                         SecretKey fileKey = (SecretKey) downloadStream.readObject();
-                                        System.out.println(fileKey);
+
                                         byte[] iv = (byte[]) downloadStream.readObject();
-                                        for (byte b : iv) {
-                                            System.out.println(b);
-                                        }
+
                                         IvParameterSpec ivP = new IvParameterSpec(iv);
-                                        System.out.println(ivP);
 
                                         Cipher cipher = null;
                                         try {
@@ -325,12 +299,8 @@ public class ClientGUIController {
                                             while (pauseDownload) {
                                                 Thread.sleep(10);
                                             }
-
                                             data = (byte[]) packet.getObject(cipher);
-
                                             fileOut.write(data);
-
-
                                             bytesWritten += data.length;
                                             progress = bytesWritten / ((double) fileSize);
                                             double finalProgress = progress;
@@ -348,15 +318,13 @@ public class ClientGUIController {
                                             DownloadStatusMessage.setText("Download Complete");
                                             DownloadFileProgress.setProgress(0);
                                         });
-                                    } catch (IOException | InterruptedException e) {
-                                        //throw new RuntimeException(e);
+                                    } catch (IOException | InterruptedException | ClassNotFoundException |
+                                             IllegalBlockSizeException | BadPaddingException e) {
+
                                         Platform.runLater(() -> {
                                             DownloadErrorMessage.setText("Download Failed");
                                             DownloadFileProgress.setProgress(0);
                                         });
-                                    } catch (ClassNotFoundException | IllegalBlockSizeException |
-                                             BadPaddingException e) {
-                                        throw new RuntimeException(e);
                                     }
                                 }).start();
                             }
@@ -393,16 +361,16 @@ public class ClientGUIController {
                             break;
                         }
                         case (10): {
-                            System.out.println("Exit client");
+
                             Platform.runLater(() -> {
                                 OnlineClients.getItems().remove(receiveMessage.getSource());
                                 String[] removeItems = receiveMessage.getItems();
-                                System.out.println(removeItems.length);
+
                                 for (int i = 0; i < removeItems.length; i++) {
-                                    System.out.println(removeItems[i]);
+
                                     int ri = 0;
                                     for (String item : DownloadFilesList.getItems()) {
-                                        System.out.println(item);
+
 
                                         if (item.equals(removeItems[i])) {
 
@@ -417,7 +385,6 @@ public class ClientGUIController {
                     }
                 } catch (IOException | ClassNotFoundException | NoSuchPaddingException | NoSuchAlgorithmException |
                          InvalidKeyException | IllegalBlockSizeException | BadPaddingException e) {
-                    //throw new RuntimeException(e);
                     exit();
                 } catch (InvalidAlgorithmParameterException e) {
                     throw new RuntimeException(e);
@@ -431,7 +398,7 @@ public class ClientGUIController {
         String[] items = new String[UploadFiles.getItems().size()];
         int i = 0;
         for (String item : UploadFiles.getItems()) {
-            System.out.println(item);
+
 
             items[i] = item;
             i++;
@@ -461,14 +428,13 @@ public class ClientGUIController {
         File file = chooser.showDialog(primaryStage);
         if (file != null) {
             downloadDest = file.getPath();
-
         }
     }
 
     public void searchFiles(ActionEvent event) {
         String search = FileSearchInput.getText().toLowerCase().strip();
         FileSearchResults.getItems().removeAll();
-        if (search != null && search != "") {
+        if (search != null && !search.equals("")) {
             for (String item : DownloadFilesList.getItems()) {
                 if (item.toLowerCase().strip().contains(search) || item.toLowerCase().compareTo(search) > 0) {
                     FileSearchResults.getItems().add(item);
@@ -557,15 +523,12 @@ public class ClientGUIController {
             sendMessage.setKey(key);
             sendMessage.setPublicKey(publicKey);
             try {
-                System.out.println("Sending file request . . .");
-                if (sendMessage == null) {
-                    System.out.println("Oh no");
-                }
                 outStream.writeObject(sendMessage);
-                System.out.println("Request sent");
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
+        } else {
+            DownloadErrorMessage.setText("A file from the download list or search results must be selected");
         }
     }
 

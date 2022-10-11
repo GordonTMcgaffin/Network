@@ -33,7 +33,6 @@ public class ClientHandler implements Runnable {
     @Override
     public void run() {
         System.out.println("[Server]--> ClientHandler started");
-        String message = "";
         Message receiveMessage;
         Message sendMessage;
         Boolean exit = false;
@@ -78,17 +77,13 @@ public class ClientHandler implements Runnable {
                         System.out.println("[Server]--> Client is requesting file " + receiveMessage.message);
                         for (Map.Entry<String, ClientHandler> aClient : clientList.entrySet()) {
                             if (!aClient.getKey().equals(clientNickname)) {
-
-                                if (receiveMessage == null) {
-                                    System.out.println("Oh no");
-                                }
                                 aClient.getValue().outStream.writeObject(receiveMessage);
                             }
                         }
                         break;
                     }
                     case (4): {
-                        System.out.println("[Server]--> Client has accepted request for " + receiveMessage.message);
+                        System.out.println("[Server]--> Client has accepted request for " + receiveMessage.message.split(":")[2]);
                         for (Map.Entry<String, ClientHandler> aClient : clientList.entrySet()) {
                             if (aClient.getKey() != clientNickname) {
                                 aClient.getValue().outStream.writeObject(receiveMessage);

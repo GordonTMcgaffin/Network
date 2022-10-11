@@ -9,7 +9,7 @@
 
 <AnchorPane prefHeight="400.0" prefWidth="600.0" xmlns="http://javafx.com/javafx/18" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.p2p.ClientGUINicknameController">
     <children>
-        <Label fx:id="DialogueLabel" alignment="CENTER" contentDisplay="CENTER" layoutX="28.0" layoutY="126.0" prefHeight="101.0" prefWidth="549.0" text="Enter Server IP" textAlignment="CENTER">
+        <Label fx:id="DialogueLabel" alignment="CENTER" contentDisplay="CENTER" layoutX="28.0" layoutY="126.0" prefHeight="101.0" prefWidth="549.0" text="Enter Client IP" textAlignment="CENTER">
             <font>
                 <Font size="34.0" />
             </font>

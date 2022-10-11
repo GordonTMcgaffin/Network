@@ -10,7 +10,9 @@ import javafx.scene.text.Text;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.net.InetAddress;
 import java.net.Socket;
+import java.net.UnknownHostException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.util.concurrent.ExecutorService;
@@ -24,6 +26,7 @@ public class ClientGUINicknameController {
     public String nickname;
     private PrivateKey privateKey;
     private PublicKey publicKey;
+    private String clientHost;
     @FXML
     private Button NicknameSubmit;
     @FXML
@@ -34,6 +37,7 @@ public class ClientGUINicknameController {
     private Text Error;
 
     private boolean serverSet = false;
+    private boolean hostSet = false;
 
     public void init(ObjectInputStream inStream, ObjectOutputStream outStream, ExecutorService threadPool, PublicKey pubKey, PrivateKey priKey, String nickname) {
 
@@ -43,19 +47,34 @@ public class ClientGUINicknameController {
         this.privateKey = priKey;
         this.publicKey = pubKey;
         this.nickname = nickname;
+
+        InetAddress ip;
+        try {
+            ip = InetAddress.getLocalHost();
+            NicknameField.setText(ip.getHostAddress());
+        } catch (UnknownHostException e) {
+            e.printStackTrace();
+        }
     }
 
     public void SendName(ActionEvent event) throws InterruptedException {
-        if (!serverSet) {
+        if (!hostSet) {
+            clientHost = NicknameField.getText().strip();
+            if (!clientHost.equals("")) {
+                DialogueLabel.setText("Enter Server IP");
+                NicknameField.setText("");
+                NicknameField.setPromptText("Enter IP");
+                hostSet = true;
+            } else {
+                Error.setText("Please enter valid address");
+            }
+        } else if (!serverSet) {
 
             int port = 9090;
             String serverHost = NicknameField.getText().strip();
             int attempts = 0;
 
-            Error.setText("");
-            Error.setText("Connecting . . .");
-
-            while (attempts < 10) {
+            while (attempts < 5) {
                 try {
 
                     this.serverSocket = new Socket(serverHost, port);
@@ -78,9 +97,7 @@ public class ClientGUINicknameController {
                 Error.setText("Could not connect to address: " + serverHost);
             }
 
-
         } else {
-
 
             String message = NicknameField.getText().strip();
             Message sendMessage;
@@ -103,6 +120,7 @@ public class ClientGUINicknameController {
                         m.nickname = sendMessage.message;
                         m.stage.hide();
                         m.setSocket(serverSocket, outStream, inStream);
+                        m.myHost = clientHost;
                         m.mainView();
                     }
 
